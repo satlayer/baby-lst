@@ -1,0 +1,8 @@
+[package]
+name = "lst_reward_dispatcher"
+edition = "2024"
+authors.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
