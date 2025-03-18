@@ -1,0 +1,89 @@
+# Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
+name: Test and Lint CW contracts
+
+on:
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "contracts/**"
+      - ".github/workflows/rust.yml"
+  push:
+    branches:
+      - main
+env:
+  RUSTC_VERSION: 1.85.0
+  RUSTC_TOOLCHAIN: "1.85.0-x86_64-unknown-linux-gnu"
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: $RUSTC_VERSION
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit tests
+        run: |
+          RUST_BACKTRACE=1 cargo unit-test --locked
+
+      - name: Install wasm32
+        run: |
+          rustup target add wasm32-unknown-unknown
+
+      - name: Compile WASM contract
+        run: |
+          RUSTFLAGS='-C link-arg=-s' cargo wasm --locked
+
+  lints:
+    name: Lints
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: $RUSTC_VERSION
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo fmt
+        run: |
+          cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: |
+          cargo clippy
+
+      # - name: Generate schema
+      #   run: |
+      #     ../scripts/generate_schema.sh lst_staking_hub lst_token lst_validators_registry lst_reward_dispatcher
+
+      # - name: Verify schema
+      #   uses: tj-actions/verify-changed-files@v14
+      #   id: verify-schema
+      #   with:
+      #     files: |
+      #       contracts/*/schema/**
+
+      # - name: Display changed schemas
+      #   if: steps.verify-schema.outputs.files_changed == 'true'
+      #   run: |
+      #     echo "Changed files: ${{ steps.verify-schema.outputs.changed_files }}"
