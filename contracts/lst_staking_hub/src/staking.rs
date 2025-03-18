@@ -1,7 +1,6 @@
-use cosmwasm_std::{
-    DepsMut, Env, MessageInfo, Response, Uint128
-};
-use crate::error::ContractError;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
+
+use lst_common::ContractError;
 
 pub fn execute_stake(
     _deps: DepsMut,

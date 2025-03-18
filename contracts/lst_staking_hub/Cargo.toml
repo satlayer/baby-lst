@@ -13,6 +13,8 @@ default = []
 library = []
 
 [dependencies]
+lst_common ={ path = "../lst_common", default-features = false }
+
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

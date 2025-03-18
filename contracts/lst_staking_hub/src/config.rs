@@ -1,5 +1,6 @@
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-use crate::error::ContractError;
+
+use lst_common::ContractError;
 
 pub fn execute_update_config(
     _deps: DepsMut,
@@ -18,4 +19,4 @@ pub fn execute_update_params(
     _pause: bool,
 ) -> Result<Response, ContractError> {
     todo!()
-}   
+}

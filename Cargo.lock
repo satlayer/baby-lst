@@ -718,6 +718,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 
 [[package]]
+name = "lst_common"
+version = "0.0.1"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "lst_reward_dispatcher"
 version = "0.0.1"
 
@@ -734,6 +743,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
+ "lst_common",
  "schemars",
  "serde",
  "thiserror 1.0.69",

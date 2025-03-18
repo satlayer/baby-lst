@@ -1,13 +1,18 @@
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 use cw2::set_contract_version;
 
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{CONFIG, TOTAL_STAKED};
-use crate::staking::{execute_stake, execute_unstake, execute_withdraw_unstaked, execute_claim_rewards_and_restake};
+use lst_common::{
+    hub::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    ContractError,
+};
+
 use crate::config::{execute_update_config, execute_update_params};
+use crate::staking::{
+    execute_claim_rewards_and_restake, execute_stake, execute_unstake, execute_withdraw_unstaked,
+};
+use crate::state::{CONFIG, TOTAL_STAKED};
 
 const CONTRACT_NAME: &str = "lst-staking-hub";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -32,12 +37,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig { lst_token, staking_denom } => execute_update_config(deps, env, info, lst_token, staking_denom),
+        ExecuteMsg::UpdateConfig {
+            lst_token,
+            staking_denom,
+        } => execute_update_config(deps, env, info, lst_token, staking_denom),
         ExecuteMsg::Stake { amount } => execute_stake(deps, env, info, amount),
         ExecuteMsg::Unstake { amount } => execute_unstake(deps, env, info, amount),
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
         ExecuteMsg::ClaimRewardsAndRestake {} => execute_claim_rewards_and_restake(deps, env, info),
         ExecuteMsg::UpdateParams { pause } => execute_update_params(deps, env, info, pause),
+        ExecuteMsg::CheckSlashing {} => todo!(),
     }
 }
 
@@ -56,4 +65,4 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             todo!()
         }
     }
-} 
+}
