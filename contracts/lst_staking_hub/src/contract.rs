@@ -14,7 +14,7 @@ use crate::staking::{
 };
 use crate::state::{CONFIG, TOTAL_STAKED};
 
-const CONTRACT_NAME: &str = "lst-staking-hub";
+const CONTRACT_NAME: &str = "crates.io:lst-staking-hub";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
