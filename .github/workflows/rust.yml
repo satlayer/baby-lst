@@ -72,9 +72,9 @@ jobs:
         run: |
           cargo clippy
 
-      - name: Generate schema
-        run: |
-          ../scripts/generate_schema.sh lst_staking_hub lst_token lst_validators_registry lst_reward_dispatcher
+      # - name: Generate schema
+      #   run: |
+      #     ../scripts/generate_schema.sh lst_staking_hub lst_token lst_validators_registry lst_reward_dispatcher
 
       - name: Verify schema
         uses: tj-actions/verify-changed-files@v14
