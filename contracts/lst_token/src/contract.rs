@@ -1,8 +1,8 @@
 use std::env;
 
 use cosmwasm_std::{
-    Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
-    entry_point,
+    Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    SubMsg, Uint128, WasmMsg, entry_point, to_json_binary,
 };
 use cw2::set_contract_version;
 use cw20::MinterResponse;
@@ -19,7 +19,8 @@ use cw20_base::{
     },
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
 };
-use lst_common::hub::is_paused;
+
+use lst_common::hub::{ExecuteMsg::CheckSlashing, is_paused};
 
 use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
 
@@ -154,10 +155,12 @@ fn execute_burn(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    //TODO: add submessage to checking slashing and update exchange rate
+    let message = build_check_slashing_sub_msg(deps.as_ref())?;
 
     let res = cw20_burn(deps, env, info, amount)?;
-    Ok(Response::new().add_attributes(res.attributes))
+    Ok(Response::new()
+        .add_submessage(message)
+        .add_attributes(res.attributes))
 }
 
 fn execute_burn_from(
@@ -167,7 +170,20 @@ fn execute_burn_from(
     owner: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    //TODO: add submessage to check slashing and update exchange rate
+    let message = build_check_slashing_sub_msg(deps.as_ref())?;
+
     let res = cw20_burn_from(deps, env, info, owner, amount)?;
-    Ok(Response::default().add_attributes(res.attributes))
+    Ok(Response::default()
+        .add_submessage(message)
+        .add_attributes(res.attributes))
+}
+
+fn build_check_slashing_sub_msg(deps: Deps) -> Result<SubMsg, ContractError> {
+    let hub_contract = HUB_CONTRACT.load(deps.storage)?;
+
+    Ok(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract.to_string(),
+        msg: to_json_binary(&CheckSlashing {})?,
+        funds: vec![],
+    })))
 }
