@@ -16,5 +16,5 @@ pub enum ContractError {
     InvalidAmount {},
 
     #[error("Invalid reward rate")]
-    InvalidRewardRate {}
-} 
+    InvalidRewardRate {},
+}

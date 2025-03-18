@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Uint128, ValidatorResponse};
 
 use crate::Config;
 
@@ -10,11 +10,18 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    Stake { amount: Uint128 },
-    Unstake { amount: Uint128 },
+    Stake {},
+    Unstake {
+        amount: Uint128,
+    },
     WithdrawUnstaked {},
-    UpdateConfig { lst_token: String, staking_denom: String },
-    UpdateParams { pause: bool },
+    UpdateConfig {
+        lst_token: String,
+        staking_denom: String,
+    },
+    UpdateParams {
+        pause: bool,
+    },
     ClaimRewardsAndRestake {},
 }
 
@@ -27,4 +34,11 @@ pub enum QueryMsg {
     TotalStaked {},
     #[returns(Uint128)]
     ExchangeRate {},
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryValidators {
+    #[returns(Vec<ValidatorResponse>)]
+    GetValidatorsForDelegation {},
 }
