@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -15,10 +15,17 @@ pub struct Config {
 }
 
 #[cw_serde]
+pub struct Parameters {
+    pub paused: Option<bool>,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Config)]
     Config {},
+    #[returns(Parameters)]
+    Parameters {},
     #[returns(Uint128)]
     TotalStaked {},
     #[returns(Uint128)]
@@ -43,4 +50,14 @@ pub enum ExecuteMsg {
     },
     ClaimRewardsAndRestake {},
     CheckSlashing {},
+}
+
+// check hub contract pause status
+pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
+    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: hub_addr,
+        msg: to_json_binary(&QueryMsg::Parameters {})?,
+    }))?;
+
+    Ok(params.paused.unwrap_or(false))
 }

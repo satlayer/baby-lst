@@ -759,6 +759,7 @@ dependencies = [
  "cw2",
  "cw20",
  "cw20-base",
+ "lst_common",
  "thiserror 1.0.69",
 ]
 

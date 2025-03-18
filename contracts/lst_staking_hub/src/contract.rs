@@ -64,5 +64,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ExchangeRate {} => {
             todo!()
         }
+        QueryMsg::Parameters {} => todo!(),
     }
 }
