@@ -72,18 +72,18 @@ jobs:
         run: |
           cargo clippy
 
-      # - name: Generate schema
-      #   run: |
-      #     ../scripts/generate_schema.sh lst_staking_hub lst_token lst_validators_registry lst_reward_dispatcher
+      - name: Generate schema
+        run: |
+          ../scripts/generate_schema.sh lst_token lst_validators_registry
 
-      # - name: Verify schema
-      #   uses: tj-actions/verify-changed-files@v14
-      #   id: verify-schema
-      #   with:
-      #     files: |
-      #       contracts/*/schema/**
+      - name: Verify schema
+        uses: tj-actions/verify-changed-files@v14
+        id: verify-schema
+        with:
+          files: |
+            contracts/*/schema/**
 
-      # - name: Display changed schemas
-      #   if: steps.verify-schema.outputs.files_changed == 'true'
-      #   run: |
-      #     echo "Changed files: ${{ steps.verify-schema.outputs.changed_files }}"
+      - name: Display changed schemas
+        if: steps.verify-schema.outputs.files_changed == 'true'
+        run: |
+          echo "Changed files: ${{ steps.verify-schema.outputs.changed_files }}"
