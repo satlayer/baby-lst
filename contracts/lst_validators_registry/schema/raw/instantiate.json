@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "hub_contract",
+    "validators"
+  ],
+  "properties": {
+    "hub_contract": {
+      "type": "string"
+    },
+    "validators": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Validator"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Validator": {
+      "type": "object",
+      "required": [
+        "address"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
