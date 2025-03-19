@@ -47,6 +47,10 @@ pub fn execute(
         ExecuteMsg::ClaimRewardsAndRestake {} => execute_claim_rewards_and_restake(deps, env, info),
         ExecuteMsg::UpdateParams { pause } => execute_update_params(deps, env, info, pause),
         ExecuteMsg::CheckSlashing {} => todo!(),
+        ExecuteMsg::RedelegateProxy {
+            src_validator: _,
+            redelegations: _,
+        } => todo!(),
     }
 }
 

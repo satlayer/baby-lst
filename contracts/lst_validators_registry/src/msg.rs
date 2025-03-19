@@ -15,7 +15,7 @@ pub enum ExecuteMsg {
     },
 
     RemoveValidator {
-        validator: Validator,
+        address: String,
     },
 
     UpdateConfig {

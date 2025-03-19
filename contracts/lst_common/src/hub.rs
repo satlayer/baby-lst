@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{to_json_binary, Addr, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -50,6 +50,11 @@ pub enum ExecuteMsg {
     },
     ClaimRewardsAndRestake {},
     CheckSlashing {},
+
+    RedelegateProxy {
+        src_validator: String,
+        redelegations: Vec<(String, Coin)>,
+    },
 }
 
 // check hub contract pause status

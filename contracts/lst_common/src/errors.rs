@@ -22,4 +22,20 @@ pub enum ContractError {
 
     #[error("Invalid reward rate")]
     InvalidRewardRate {},
+
+    #[error(transparent)]
+    Validator(#[from] ValidatorError),
+}
+
+#[derive(Error, Debug, PartialEq)]
+#[error("Validator error: {0}")]
+pub enum ValidatorError {
+    #[error("Cannot remove the last validator in the registry")]
+    LastValidatorRemovalNotAllowed,
+
+    #[error("Empty validator set")]
+    EmptyValidatorSet,
+
+    #[error("Complete redelegation failed")]
+    DistributionFailed,
 }
