@@ -23,6 +23,9 @@ pub enum ContractError {
     #[error("Invalid reward rate")]
     InvalidRewardRate {},
 
+    #[error("{0}")]
+    Overflow(String),
+
     #[error(transparent)]
     Validator(#[from] ValidatorError),
 }
@@ -38,4 +41,7 @@ pub enum ValidatorError {
 
     #[error("Complete redelegation failed")]
     DistributionFailed,
+
+    #[error("Undelegation amount exceeds total delegations")]
+    ExceedUndelegation,
 }
