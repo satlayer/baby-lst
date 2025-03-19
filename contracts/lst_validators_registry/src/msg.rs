@@ -1,6 +1,8 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{QueryResponses, cw_serde};
 
-use crate::state::Validator;
+use lst_common::msg::ValidatorResponse;
+
+use crate::state::{Config, Validator};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -25,7 +27,10 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
+    #[returns(Vec<ValidatorResponse>)]
     ValidatorsDelegation {},
+    #[returns(Config)]
     Config {},
 }
