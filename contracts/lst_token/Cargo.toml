@@ -3,5 +3,22 @@ name = "lst_token"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+library = []
+
 
 [dependencies]
+lst_common = {path = "../lst_common", default-features = false }
+
+cosmwasm-schema.workspace = true
+cosmwasm-std.workspace = true
+cw2.workspace = true
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+
+cw20 = "2.0.0"
+cw20-base = {version = "2.0.0", features = ["library"]}

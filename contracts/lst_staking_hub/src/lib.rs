@@ -1,14 +1,8 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+mod constants;
+pub mod contract;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod config;
+pub mod staking;
+mod state;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use contract::{execute, instantiate, query};
