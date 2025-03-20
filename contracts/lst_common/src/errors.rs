@@ -8,6 +8,7 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+
     #[error("Failed to init contact")]
     FailedToInitContract,
 
@@ -25,6 +26,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Overflow(String),
+
+    #[error("Hub contract paused")]
+    HubPaused,
 
     #[error(transparent)]
     Validator(#[from] ValidatorError),

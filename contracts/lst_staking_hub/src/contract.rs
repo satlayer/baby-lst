@@ -51,6 +51,7 @@ pub fn execute(
             src_validator: _,
             redelegations: _,
         } => todo!(),
+        ExecuteMsg::StakeRewards {} => todo!(),
     }
 }
 
