@@ -8,10 +8,9 @@ use crate::config::{execute_update_config, execute_update_params};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::stake::execute_stake;
-use crate::staking::{
-    execute_claim_rewards_and_restake, execute_unstake, execute_withdraw_unstaked,
-};
+use crate::staking::{execute_claim_rewards_and_restake, execute_withdraw_unstaked};
 use crate::state::{StakeType, State, CONFIG, TOTAL_STAKED};
+use crate::unstake::execute_unstake;
 use cw20::{Cw20QueryMsg, TokenInfoResponse};
 
 const CONTRACT_NAME: &str = "lst-staking-hub";
@@ -37,7 +36,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             staking_denom,
         } => execute_update_config(deps, env, info, lst_token, staking_denom),
         ExecuteMsg::Stake {} => execute_stake(deps, env, info, StakeType::LSTMint),
-        ExecuteMsg::Unstake { amount } => execute_unstake(deps, env, info, amount),
+        ExecuteMsg::Unstake { amount } => {
+            execute_unstake(deps, env, amount, info.sender.to_string())
+        }
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
         ExecuteMsg::ClaimRewardsAndRestake {} => execute_claim_rewards_and_restake(deps, env, info),
         ExecuteMsg::UpdateParams { pause } => execute_update_params(deps, env, info, pause),

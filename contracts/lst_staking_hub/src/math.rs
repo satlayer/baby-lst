@@ -11,6 +11,46 @@ pub fn decimal_division(numerator: Uint128, denominator: Decimal) -> Uint128 {
         .unwrap()
 }
 
+pub fn decimal_multiplication(a: Uint128, b: Decimal) -> Uint128 {
+    let a_u256 = Uint256::from(a);
+    let b_u256 = Uint256::from(b.atomics());
+    ((a_u256 * b_u256) / DECIMAL_FRACTIONAL).try_into().unwrap()
+}
+
+#[cfg(test)]
+mod decimal_multiplication_tests {
+    use super::*;
+
+    #[test]
+    fn test_decimal_multiplication() {
+        // Test case 1: Multiply by zero
+        let result = decimal_multiplication(Uint128::from(1000u128), Decimal::zero());
+        assert_eq!(result, Uint128::zero());
+
+        // Test case 2: Multiply by one
+        let result = decimal_multiplication(Uint128::from(1000u128), Decimal::one());
+        assert_eq!(result, Uint128::from(1000u128));
+
+        // Test case 3: Very large number with small decimal
+        let result = decimal_multiplication(Uint128::MAX, Decimal::from_ratio(1u128, 1000000u128));
+        assert_eq!(result, Uint128::from(340282366920938463463374607431768u128));
+
+        // Test case 4: Small number with large decimal
+        let result = decimal_multiplication(
+            Uint128::from(1u128),
+            Decimal::from_ratio(999999999999u128, 1u128),
+        );
+        assert_eq!(result, Uint128::from(999999999999u128));
+
+        // Test case 5: Numbers that could cause overflow if not handled properly
+        let result = decimal_multiplication(
+            Uint128::from(10u128.pow(20)),
+            Decimal::from_ratio(10u128.pow(18), 1u128),
+        );
+        assert_eq!(result, Uint128::from(10u128.pow(38)));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

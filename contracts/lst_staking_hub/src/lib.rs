@@ -7,6 +7,7 @@ pub mod msg;
 pub mod stake;
 pub mod staking;
 mod state;
+pub mod unstake;
 
 pub use contract::{execute, instantiate, query};
 pub use error::ContractError;

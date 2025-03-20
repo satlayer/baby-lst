@@ -1,14 +1,5 @@
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 
-pub fn execute_unstake(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _amount: Uint128,
-) -> StdResult<Response> {
-    todo!()
-}
-
 pub fn execute_withdraw_unstaked(
     _deps: DepsMut,
     _env: Env,
