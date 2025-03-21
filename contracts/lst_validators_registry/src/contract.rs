@@ -107,7 +107,7 @@ fn remove_validator(
         return Err(ContractError::Unauthorized {});
     }
 
-    VALIDATOR_REGISTRY.remove(deps.storage, validator_addr.as_str().as_bytes());
+    VALIDATOR_REGISTRY.remove(deps.storage, validator_addr.as_bytes());
 
     let validators = query_validators(deps.as_ref())?;
 

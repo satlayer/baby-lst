@@ -4,7 +4,8 @@ pub mod hub;
 pub mod msg;
 pub mod types;
 
-use cosmwasm_std::{Addr, Deps};
+use cosmwasm_std::{Addr, CanonicalAddr, Deps};
+use types::LstResult;
 
 pub use crate::{
     delegation::calculate_delegations,
@@ -12,7 +13,7 @@ pub use crate::{
     msg::MigrateMsg,
 };
 
-pub fn to_checked_address(deps: Deps, address: &str) -> Result<Addr, ContractError> {
+pub fn to_checked_address(deps: Deps, address: &str) -> LstResult<Addr> {
     #[cfg(test)]
     return Ok(Addr::unchecked(address));
     #[cfg(not(test))]
@@ -20,4 +21,8 @@ pub fn to_checked_address(deps: Deps, address: &str) -> Result<Addr, ContractErr
         .api
         .addr_validate(address)
         .map_err(|_| ContractError::InvalidAddress);
+}
+
+pub fn to_canoncial_addr(deps: Deps, addr: &str) -> LstResult<CanonicalAddr> {
+    Ok(deps.api.addr_canonicalize(addr)?)
 }

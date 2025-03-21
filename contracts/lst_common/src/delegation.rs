@@ -21,8 +21,7 @@ pub fn calculate_delegations(
     let (coins_per_val, remaining_coins) =
         distribute_coins(total_coins_to_distribute, validators.len());
 
-    let target_delegations =
-        target_coins_per_validator(coins_per_val, remaining_coins, &validators);
+    let target_delegations = target_coins_per_validator(coins_per_val, remaining_coins, validators);
 
     let mut delegations = vec![Uint128::zero(); validators.len()];
 
@@ -35,7 +34,7 @@ pub fn calculate_delegations(
             continue;
         }
 
-        let mut to_delegate = Uint128::from(target_delegation).sub(val_current_delegation);
+        let mut to_delegate = target_delegation.sub(val_current_delegation);
 
         if to_delegate > amt_to_delegate {
             to_delegate = amt_to_delegate;

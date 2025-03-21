@@ -55,6 +55,8 @@ pub enum ExecuteMsg {
         src_validator: String,
         redelegations: Vec<(String, Coin)>,
     },
+
+    StakeRewards {},
 }
 
 // check hub contract pause status

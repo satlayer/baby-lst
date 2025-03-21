@@ -14,6 +14,12 @@ pub enum ContractError {
     #[error("Invalid Address")]
     InvalidAddress,
 
+    #[error("Failed to init contact")]
+    FailedToInitContract,
+
+    #[error("Invalid Address")]
+    InvalidAddress,
+
     #[error("Insufficient funds")]
     InsufficientFunds {},
 
@@ -25,6 +31,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Overflow(String),
+
+    #[error("Hub contract paused")]
+    HubPaused,
 
     #[error(transparent)]
     Validator(#[from] ValidatorError),
