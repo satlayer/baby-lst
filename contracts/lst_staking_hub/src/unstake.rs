@@ -40,7 +40,7 @@ pub(crate) fn execute_unstake(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     // if the epoch period is passed, the undelegate message would be sent
-    if passed_time >= epoch_period {
+    if passed_time > epoch_period {
         let mut undelegate_msgs =
             process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
@@ -87,21 +87,23 @@ fn store_unstake_wait_list(
 ) -> StdResult<()> {
     let sender_addr = Addr::unchecked(sender_address);
 
-    // Try to load existing wait entity for this user
-    let wait_entity = match UNSTAKE_WAIT_LIST.may_load(storage, sender_addr.clone())? {
-        Some(mut entity) => {
-            // Update existing entity
-            entity.lst_token_amount += amount;
-            entity
-        }
-        None => {
-            // Create new entity
-            UnstakeWaitEntity {
-                batch_id,
-                lst_token_amount: amount,
+    let wait_entity = UNSTAKE_WAIT_LIST.may_load(storage, sender_addr.clone())?.map_or_else(
+        || UnstakeWaitEntity {
+            batch_id,
+            lst_token_amount: amount,
+        },
+        |mut entity| {
+            if entity.batch_id != batch_id {
+                UnstakeWaitEntity {
+                    batch_id,
+                    lst_token_amount: amount,
+                }
+            } else {
+                entity.lst_token_amount += amount;
+                entity
             }
-        }
-    };
+        },
+    );
 
     // Save updated/new entity
     UNSTAKE_WAIT_LIST.save(storage, sender_addr, &wait_entity)?;
@@ -128,6 +130,8 @@ fn process_undelegations(
     state.total_lst_token_amount = state
         .total_lst_token_amount
         .checked_sub(lst_undelegation_amount)?;
+
+    // Store history for withdraw unstaked
     let history = UnStakeHistory {
         batch_id: current_batch.id,
         time: env.block.time.seconds(),
