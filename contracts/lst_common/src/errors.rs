@@ -8,7 +8,8 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-    #[error("Failed to init contact")]
+
+    #[error("Failed to init contract")]
     FailedToInitContract,
 
     #[error("Invalid Address")]
@@ -16,9 +17,6 @@ pub enum ContractError {
 
     #[error("Insufficient funds")]
     InsufficientFunds {},
-
-    #[error("Invalid amount")]
-    InvalidAmount {},
 
     #[error("Invalid reward rate")]
     InvalidRewardRate {},
@@ -31,6 +29,9 @@ pub enum ContractError {
 
     #[error(transparent)]
     Validator(#[from] ValidatorError),
+
+    #[error(transparent)]
+    Hub(#[from] HubError),
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -47,4 +48,23 @@ pub enum ValidatorError {
 
     #[error("Undelegation amount exceeds total delegations")]
     ExceedUndelegation,
+}
+
+#[derive(Error, Debug, PartialEq)]
+#[error("Hub error: {0}")]
+pub enum HubError {
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Reward discpather contract not set")]
+    RewardDispatcherNotSet,
+
+    #[error("Validator registry contract not set")]
+    ValidatorRegistryNotSet,
+
+    #[error("LST Token contract not set")]
+    LstTokenNotSet,
+
+    #[error("Only one coin can be sent to the contract")]
+    OnlyOneCoinAllowed,
 }

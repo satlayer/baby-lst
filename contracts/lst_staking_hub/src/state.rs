@@ -1,9 +1,9 @@
 use crate::constants::*;
-use cosmwasm_std::{Addr, CanonicalAddr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map};
+use lst_common::hub::Config;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use lst_common::hub::Config;
 
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
@@ -13,18 +13,6 @@ pub const STATE: Item<State> = Item::new(STATE_KEY);
 pub const UNSTAKE_WAIT_LIST: Map<Addr, UnstakeWaitEntity> = Map::new(UNSTAKE_WAIT_LIST_KEY);
 pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 pub const TOTAL_STAKED: Item<Uint128> = Item::new("total_staked");
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    // address of the owner of the contract
-    pub owner: CanonicalAddr,
-    // address of the reward dispatcher contract
-    pub reward_dispatcher_contract: Option<CanonicalAddr>,
-    // optional address of the validators registry contract
-    pub validators_registry_contract: Option<CanonicalAddr>,
-    // token address of the lst token
-    pub lst_token: Option<CanonicalAddr>,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
