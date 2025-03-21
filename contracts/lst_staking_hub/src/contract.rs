@@ -42,7 +42,20 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
         }
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
         ExecuteMsg::ClaimRewardsAndRestake {} => execute_claim_rewards_and_restake(deps, env, info),
-        ExecuteMsg::UpdateParams { pause } => execute_update_params(deps, env, info, pause),
+        ExecuteMsg::UpdateParams {
+            pause,
+            staking_coin_denom,
+            epoch_length,
+            unstaking_period,
+        } => execute_update_params(
+            deps,
+            env,
+            info,
+            pause,
+            staking_coin_denom,
+            epoch_length,
+            unstaking_period,
+        ),
         ExecuteMsg::CheckSlashing {} => todo!(),
         ExecuteMsg::RedelegateProxy {
             src_validator: _,

@@ -1,7 +1,7 @@
 use crate::constants::*;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map};
-use lst_common::hub::Config;
+use lst_common::hub::{Config, Parameters};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,14 +13,6 @@ pub const STATE: Item<State> = Item::new(STATE_KEY);
 pub const UNSTAKE_WAIT_LIST: Map<Addr, UnstakeWaitEntity> = Map::new(UNSTAKE_WAIT_LIST_KEY);
 pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 pub const TOTAL_STAKED: Item<Uint128> = Item::new("total_staked");
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Parameters {
-    pub epoch_length: u64,
-    pub staking_coin_denom: String,
-    pub unstaking_period: u64,
-    pub paused: Option<bool>,
-}
 
 #[derive(PartialEq)]
 pub enum StakeType {
