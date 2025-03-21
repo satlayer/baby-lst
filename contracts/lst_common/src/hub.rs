@@ -1,5 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{to_json_binary, Addr, Coin, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{
+    to_json_binary, CanonicalAddr, Coin, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -8,10 +10,14 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub struct Config {
+    // address of the owner of the contract
+    pub owner: CanonicalAddr,
+    // address of the reward dispatcher contract
+    pub reward_dispatcher_contract: Option<CanonicalAddr>,
+    // optional address of the validators registry contract
+    pub validators_registry_contract: Option<CanonicalAddr>,
     // token address of the lst token
-    pub lst_token: Addr,
-    // denom of the staking token
-    pub staking_denom: String,
+    pub lst_token: Option<CanonicalAddr>,
 }
 
 #[cw_serde]
@@ -34,9 +40,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    Stake {
-        amount: Uint128,
-    },
+    Stake {},
     Unstake {
         amount: Uint128,
     },

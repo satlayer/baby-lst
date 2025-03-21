@@ -1,8 +1,10 @@
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, CosmosMsg, DepsMut, Env, Response, StdError, StdResult, Storage,
-    Uint128, WasmMsg,
+    attr, to_json_binary, Addr, CosmosMsg, DepsMut, Env, Response, StdResult, Storage, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
+
+use lst_common::{errors::HubError, types::LstResult, ContractError};
 
 use crate::{
     contract::check_slashing,
@@ -18,7 +20,7 @@ pub(crate) fn execute_unstake(
     env: Env,
     amount: Uint128,
     sender: String,
-) -> StdResult<Response> {
+) -> LstResult<Response> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
@@ -54,11 +56,9 @@ pub(crate) fn execute_unstake(
 
     // send burn message to the token contract
     let config = CONFIG.load(deps.storage)?;
-    let lst_token_addr = deps.api.addr_humanize(
-        &config
-            .lst_token
-            .ok_or_else(|| StdError::generic_err("LST token address not found"))?,
-    )?;
+    let lst_token_addr = deps
+        .api
+        .addr_humanize(&config.lst_token.ok_or(HubError::LstTokenNotSet)?)?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -84,7 +84,7 @@ fn store_unstake_wait_list(
     batch_id: u64,
     sender_address: String,
     amount: Uint128,
-) -> StdResult<()> {
+) -> LstResult<()> {
     let sender_addr = Addr::unchecked(sender_address);
 
     // Try to load existing wait entity for this user
@@ -114,7 +114,7 @@ fn process_undelegations(
     env: Env,
     current_batch: &mut CurrentBatch,
     state: &mut State,
-) -> StdResult<Vec<CosmosMsg>> {
+) -> LstResult<Vec<CosmosMsg>> {
     // Apply the current exchange rate
     let lst_undelegation_amount = decimal_multiplication(
         current_batch.requested_lst_token_amount,
@@ -127,7 +127,9 @@ fn process_undelegations(
 
     state.total_lst_token_amount = state
         .total_lst_token_amount
-        .checked_sub(lst_undelegation_amount)?;
+        .checked_sub(lst_undelegation_amount)
+        .map_err(|e| ContractError::Overflow(e.to_string()))?;
+
     let history = UnStakeHistory {
         batch_id: current_batch.id,
         time: env.block.time.seconds(),

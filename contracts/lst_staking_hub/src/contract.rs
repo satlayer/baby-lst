@@ -1,16 +1,13 @@
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StdResult, Uint128, Validator, ValidatorResponse, WasmQuery,
+    StdError, StdResult, Uint128, ValidatorResponse, WasmQuery,
 };
 use cw2::set_contract_version;
 
-use lst_common::{
-    hub::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    ContractError,
-};
+use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use lst_common::types::LstResult;
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::stake::execute_stake;
 use crate::staking::{execute_claim_rewards_and_restake, execute_withdraw_unstaked};
 use crate::state::{StakeType, State, CONFIG, TOTAL_STAKED};
@@ -26,19 +23,14 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     _msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> LstResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     todo!()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     match msg {
         ExecuteMsg::UpdateConfig {
             lst_token,

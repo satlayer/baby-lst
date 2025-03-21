@@ -1,21 +1,23 @@
+use cosmwasm_std::{
+    attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
+    StakingMsg, StdError, StdResult, Uint128, ValidatorResponse, WasmMsg, WasmQuery,
+};
+use cw20::Cw20ExecuteMsg;
+use lst_common::{errors::HubError, types::LstResult, ContractError, ValidatorError};
+
 use crate::{
     contract::{calculate_delegations, check_slashing, query_total_lst_token_issued},
     math::decimal_division,
     msg::QueryValidators,
     state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
 };
-use cosmwasm_std::{
-    attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StakingMsg, StdError, StdResult, Uint128, ValidatorResponse, WasmMsg, WasmQuery,
-};
-use cw20::Cw20ExecuteMsg;
 
 pub fn execute_stake(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     stake_type: StakeType,
-) -> Result<Response, StdError> {
+) -> LstResult<Response> {
     let params = PARAMETERS.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
@@ -25,35 +27,26 @@ pub fn execute_stake(
     let reward_dispatcher_address = deps.api.addr_humanize(
         &config
             .reward_dispatcher_contract
-            .ok_or_else(|| StdError::generic_err("Reward dispatcher contract is not set"))?,
+            .ok_or(HubError::RewardDispatcherNotSet)?, // .ok_or_else(|| StdError::generic_err("Reward dispatcher contract is not set"))?,
     )?;
 
     //If stake type is StakeRewards, we need to check if the sender is the reward dispatcher contract
     if stake_type == StakeType::StakeRewards && sender != reward_dispatcher_address {
-        return Err(StdError::generic_err(
-            "Only the reward dispatcher contract can call this function",
-        ));
+        return Err(ContractError::Unauthorized {});
     }
 
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     let requested_withdrawal_amount = current_batch.requested_lst_token_amount;
 
     if info.funds.len() > 1usize {
-        return Err(StdError::generic_err(
-            "Only one coin can be sent to the contract",
-        ));
+        return Err(HubError::OnlyOneCoinAllowed.into());
     }
 
     let payment = info
         .funds
         .iter()
         .find(|coin| coin.denom == staking_coin_denom && coin.amount > Uint128::zero())
-        .ok_or_else(|| {
-            StdError::generic_err(format!(
-                "No {} assets are provided to bond",
-                staking_coin_denom
-            ))
-        })?;
+        .ok_or(HubError::InvalidAmount)?;
 
     // check slashing and get the latest exchange rate
     let state = check_slashing(&mut deps, env)?;
@@ -86,9 +79,7 @@ pub fn execute_stake(
                 .addr_humanize(&validators_registry_contract)?
                 .to_string()
         } else {
-            return Err(StdError::generic_err(
-                "Validators registry contract is not set",
-            ));
+            return Err(HubError::ValidatorRegistryNotSet.into());
         };
 
     let validators: Vec<ValidatorResponse> =
@@ -98,7 +89,7 @@ pub fn execute_stake(
         }))?;
 
     if validators.is_empty() {
-        return Err(StdError::generic_err("No validators found"));
+        return Err(ValidatorError::EmptyValidatorSet.into());
     }
 
     let (remaining_buffered_balance, delegations) =
