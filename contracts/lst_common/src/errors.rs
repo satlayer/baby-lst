@@ -14,12 +14,6 @@ pub enum ContractError {
     #[error("Invalid Address")]
     InvalidAddress,
 
-    #[error("Failed to init contact")]
-    FailedToInitContract,
-
-    #[error("Invalid Address")]
-    InvalidAddress,
-
     #[error("Insufficient funds")]
     InsufficientFunds {},
 
