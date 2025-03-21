@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "type": "object",
+  "required": [
+    "hub_contract",
+    "owner",
+    "reward_denom",
+    "satlayer_fee_addr",
+    "satlayer_fee_rate"
+  ],
+  "properties": {
+    "hub_contract": {
+      "$ref": "#/definitions/CanonicalAddr"
+    },
+    "owner": {
+      "$ref": "#/definitions/CanonicalAddr"
+    },
+    "reward_denom": {
+      "type": "string"
+    },
+    "satlayer_fee_addr": {
+      "$ref": "#/definitions/CanonicalAddr"
+    },
+    "satlayer_fee_rate": {
+      "$ref": "#/definitions/Decimal"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
+    "CanonicalAddr": {
+      "description": "A blockchain address in its binary form.\n\nThe specific implementation is up to the underlying chain and CosmWasm as well as contracts should not make assumptions on that data. In Ethereum for example, an `Addr` would contain a user visible address like 0x14d3cc818735723ab86eaf9502376e847a64ddad and the corresponding `CanonicalAddr` would store the 20 bytes 0x14, 0xD3, ..., 0xAD. In Cosmos, the bech32 format is used for `Addr`s and the `CanonicalAddr` holds the encoded bech32 data without the checksum. Typical sizes are 20 bytes for externally owned addresses and 32 bytes for module addresses (such as x/wasm contract addresses). That being said, a chain might decide to use any size other than 20 or 32 bytes.\n\nThe safe way to obtain a valid `CanonicalAddr` is using `Api::addr_canonicalize`. In addition to that there are many unsafe ways to convert any binary data into an instance. So the type should be treated as a marker to express the intended data type, not as a validity guarantee of any sort.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Binary"
+        }
+      ]
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    }
+  }
+}

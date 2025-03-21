@@ -729,6 +729,13 @@ dependencies = [
 [[package]]
 name = "lst_reward_dispatcher"
 version = "0.0.1"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "lst_common",
+]
 
 [[package]]
 name = "lst_reward_hub"
@@ -766,6 +773,14 @@ dependencies = [
 [[package]]
 name = "lst_validators_registry"
 version = "0.0.1"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "lst_common",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "memchr"
