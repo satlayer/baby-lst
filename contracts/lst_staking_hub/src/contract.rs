@@ -12,7 +12,7 @@ use crate::stake::execute_stake;
 use crate::staking::{execute_claim_rewards_and_restake, execute_withdraw_unstaked};
 use crate::state::{StakeType, State, CONFIG, TOTAL_STAKED};
 use crate::unstake::execute_unstake;
-use cw20::{Cw20QueryMsg, TokenInfoResponse};
+use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 
 const CONTRACT_NAME: &str = "crates.io:lst-staking-hub";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -83,11 +83,10 @@ pub(crate) fn query_total_lst_token_issued(deps: Deps) -> StdResult<Uint128> {
             .lst_token
             .ok_or_else(|| StdError::generic_err("LST token address is not set"))?,
     )?;
-    let token_info: TokenInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: token_address.to_string(),
-            msg: to_json_binary(&Cw20QueryMsg::TokenInfo {})?,
-        }))?;
+    let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: token_address.to_string(),
+        msg: to_json_binary(&Cw20QueryMsg::TokenInfo {})?,
+    }))?;
 
     Ok(token_info.total_supply)
 }

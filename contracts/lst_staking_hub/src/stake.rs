@@ -2,7 +2,7 @@ use cosmwasm_std::{
     attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StakingMsg, StdError, StdResult, Uint128, ValidatorResponse, WasmMsg, WasmQuery,
 };
-use cw20::Cw20ExecuteMsg;
+use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use lst_common::{errors::HubError, types::LstResult, ContractError, ValidatorError};
 
 use crate::{
