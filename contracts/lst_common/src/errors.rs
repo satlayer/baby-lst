@@ -8,7 +8,6 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-
     #[error("Failed to init contact")]
     FailedToInitContract,
 
