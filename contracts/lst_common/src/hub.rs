@@ -41,8 +41,10 @@ pub enum ExecuteMsg {
     },
     WithdrawUnstaked {},
     UpdateConfig {
-        lst_token: String,
-        staking_denom: String,
+        owner: Option<String>,
+        lst_token: Option<String>,
+        validator_registry: Option<String>,
+        reward_dispatcher: Option<String>,
     },
     UpdateParams {
         pause: Option<bool>,

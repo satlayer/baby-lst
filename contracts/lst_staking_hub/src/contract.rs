@@ -33,9 +33,19 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     match msg {
         ExecuteMsg::UpdateConfig {
+            owner,
             lst_token,
-            staking_denom,
-        } => execute_update_config(deps, env, info, lst_token, staking_denom),
+            validator_registry,
+            reward_dispatcher,
+        } => execute_update_config(
+            deps,
+            env,
+            info,
+            owner,
+            lst_token,
+            validator_registry,
+            reward_dispatcher,
+        ),
         ExecuteMsg::Stake {} => execute_stake(deps, env, info, StakeType::LSTMint),
         ExecuteMsg::Unstake { amount } => {
             execute_unstake(deps, env, amount, info.sender.to_string())
