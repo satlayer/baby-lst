@@ -1,10 +1,11 @@
 use cosmwasm_schema::write_api;
 
-use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use cw20_base::msg::{ExecuteMsg, QueryMsg};
+use lst_token::msg::TokenInitMsg;
 
 fn main() {
     write_api! {
-        instantiate: InstantiateMsg,
+        instantiate: TokenInitMsg,
         execute: ExecuteMsg,
         query: QueryMsg,
     }

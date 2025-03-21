@@ -3,6 +3,7 @@ use cosmwasm_std::{Addr, CanonicalAddr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use lst_common::hub::Config;
 
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);

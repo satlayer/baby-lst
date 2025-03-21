@@ -5,4 +5,17 @@ authors.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+library = []
+default = []
+
 [dependencies]
+cosmwasm-std.workspace = true
+cw2.workspace = true
+cosmwasm-schema.workspace = true
+cw-storage-plus.workspace = true
+
+lst_common = { path = "../lst_common" }

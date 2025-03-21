@@ -1,4 +1,6 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+
+use lst_common::ContractError;
 
 pub fn execute_update_config(
     _deps: DepsMut,
@@ -6,7 +8,7 @@ pub fn execute_update_config(
     _info: MessageInfo,
     _lst_token: String,
     _staking_denom: String,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     todo!()
 }
 
@@ -15,6 +17,6 @@ pub fn execute_update_params(
     _env: Env,
     _info: MessageInfo,
     _pause: bool,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
     todo!()
 }
