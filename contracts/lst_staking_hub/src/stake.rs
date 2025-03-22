@@ -30,7 +30,7 @@ pub fn execute_stake(
     let reward_dispatcher_address = deps.api.addr_humanize(
         &config
             .reward_dispatcher_contract
-            .ok_or(HubError::RewardDispatcherNotSet)?, // .ok_or_else(|| StdError::generic_err("Reward dispatcher contract is not set"))?,
+            .ok_or(HubError::RewardDispatcherNotSet)?,
     )?;
 
     //If stake type is StakeRewards, we need to check if the sender is the reward dispatcher contract
@@ -67,10 +67,13 @@ pub fn execute_stake(
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
         match stake_type {
             StakeType::LSTMint => {
-                todo!()
+                prev_state.total_lst_token_amount += payment.amount;
+                Ok(prev_state)
             }
             StakeType::StakeRewards => {
-                todo!()
+                prev_state.total_lst_token_amount += payment.amount;
+                prev_state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
+                Ok(prev_state)
             }
         }
     })?;
