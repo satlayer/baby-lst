@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "Parameters",
   "type": "object",
   "required": [
     "epoch_length",
@@ -12,6 +12,10 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "paused": {
+      "default": true,
+      "type": "boolean"
     },
     "staking_coin_denom": {
       "type": "string"

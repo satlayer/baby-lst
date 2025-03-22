@@ -18,6 +18,19 @@
     {
       "type": "object",
       "required": [
+        "parameters"
+      ],
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "total_staked"
       ],
       "properties": {
