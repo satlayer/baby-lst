@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use lst_reward_dispatcher::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use lst_common::rewards_msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

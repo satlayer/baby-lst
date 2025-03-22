@@ -19,7 +19,7 @@ use crate::state::{
 };
 use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
-use lst_reward_dispatcher::msg::ExecuteMsg::DispatchRewards;
+use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
 
 const CONTRACT_NAME: &str = "crates.io:lst-staking-hub";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

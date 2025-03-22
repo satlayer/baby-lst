@@ -2,6 +2,7 @@ pub mod delegation;
 pub mod errors;
 pub mod hub;
 pub mod msg;
+pub mod rewards_msg;
 mod signed_integer;
 pub mod types;
 

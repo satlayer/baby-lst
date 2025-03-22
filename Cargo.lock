@@ -756,7 +756,6 @@ dependencies = [
  "cw20",
  "cw20-base",
  "lst_common",
- "lst_reward_dispatcher",
  "schemars",
  "serde",
  "thiserror 1.0.69",
