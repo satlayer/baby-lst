@@ -1,7 +1,8 @@
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StdError, StdResult, Uint128, ValidatorResponse, WasmQuery,
+    StdError, StdResult, Uint128, WasmQuery,
 };
+
 use cw2::set_contract_version;
 
 use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};

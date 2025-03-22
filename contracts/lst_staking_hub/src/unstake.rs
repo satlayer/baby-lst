@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, Deps,
-    DepsMut, Env, MessageInfo, Response, StakingMsg, StdResult, Storage, Uint128, Uint256, WasmMsg,
+    attr, coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
+    MessageInfo, Response, StakingMsg, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
@@ -14,8 +14,8 @@ use crate::{
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
         get_finished_amount, read_unstake_history, remove_unstake_wait_list, CurrentBatch, State,
-        UnStakeHistory, UnstakeWaitEntity, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
-        UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        UnStakeHistory, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
+        UNSTAKE_WAIT_LIST,
     },
 };
 

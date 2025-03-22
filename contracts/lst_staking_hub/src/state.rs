@@ -4,9 +4,7 @@ use cw_storage_plus::{Item, Map};
 use lst_common::{
     errors::HubError,
     hub::{Config, Parameters},
-    to_checked_address,
     types::LstResult,
-    ContractError,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -56,12 +54,6 @@ impl State {
                 Decimal::from_ratio(self.total_lst_token_amount, actual_supply);
         }
     }
-}
-
-#[derive(JsonSchema, Serialize, Deserialize, Default)]
-pub struct UnstakeWaitEntity {
-    pub batch_id: u64,
-    pub lst_token_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
