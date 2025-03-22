@@ -1,15 +1,16 @@
-use cosmwasm_schema::{schemars::JsonSchema, serde::{Deserialize, Serialize}};
+use cosmwasm_schema::{
+    schemars::JsonSchema,
+    serde::{Deserialize, Serialize},
+};
 use cosmwasm_std::{Uint128, Uint256};
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
-pub struct SignedInt(
-    #[schemars(with = "String")]
-    pub Uint128,
-    pub bool
-);
+#[derive(
+    Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, JsonSchema,
+)]
+pub struct SignedInt(#[schemars(with = "String")] pub Uint128, pub bool);
 
 impl SignedInt {
-    pub fn from_subtraction<A, B>(minuend: A, subtrahend: B) -> SignedInt 
+    pub fn from_subtraction<A, B>(minuend: A, subtrahend: B) -> SignedInt
     where
         A: Into<Uint256>,
         B: Into<Uint256>,
@@ -25,7 +26,7 @@ impl SignedInt {
         // If subtraction fails, calculate the negative value
         SignedInt(
             Uint128::try_from(subtrahend_256.checked_sub(minuend_256).unwrap()).unwrap(),
-            true
+            true,
         )
     }
 }
