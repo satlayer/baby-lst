@@ -10,7 +10,7 @@ use lst_common::types::LstResult;
 use crate::config::{execute_update_config, execute_update_params};
 use crate::stake::execute_stake;
 use crate::staking::{execute_claim_rewards_and_restake, execute_withdraw_unstaked};
-use crate::state::{StakeType, State, CONFIG, TOTAL_STAKED};
+use crate::state::{StakeType, State, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, TOTAL_STAKED};
 use crate::unstake::execute_unstake;
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 
@@ -95,8 +95,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 // Check if slashing has happened and return the slashed amount
-pub fn check_slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
-    todo!()
+pub fn check_slashing(deps: &mut DepsMut, env: Env) -> LstResult<State> {
+    let state = query_actual_state(deps.as_ref(), env)?;
+
+    STATE.save(deps.storage, &state)?;
+    Ok(state)
 }
 
 pub(crate) fn query_total_lst_token_issued(deps: Deps) -> StdResult<Uint128> {
@@ -114,9 +117,41 @@ pub(crate) fn query_total_lst_token_issued(deps: Deps) -> StdResult<Uint128> {
     Ok(token_info.total_supply)
 }
 
-pub(crate) fn calculate_delegations(
-    amount: Uint128,
-    validators: &[ValidatorResponse],
-) -> (Uint128, Vec<Uint128>) {
-    todo!()
+fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
+    let mut state = STATE.load(deps.storage)?;
+    let delegations = deps.querier.query_all_delegations(env.contract.address)?;
+    if delegations.is_empty() {
+        return Ok(state);
+    }
+
+    // read params
+    let params = PARAMETERS.load(deps.storage)?;
+    let staking_coin_denom = params.staking_coin_denom;
+
+    // check the actual bonded amount
+    let mut actual_total_staked = Uint128::zero();
+    for delegation in &delegations {
+        if delegation.amount.denom == staking_coin_denom {
+            actual_total_staked += delegation.amount.amount;
+        }
+    }
+
+    // Check the amount that contract thinks is staked
+    let state_total_staked = state.total_lst_token_amount;
+    if state_total_staked.is_zero() {
+        return Ok(state);
+    }
+
+    // Need total issued for updating the exchange rate
+    let lst_total_issued = query_total_lst_token_issued(deps)?;
+    let current_batch = CURRENT_BATCH.load(deps.storage)?;
+    let current_requested_lst_token_amount = current_batch.requested_lst_token_amount;
+
+    if state_total_staked.u128() > actual_total_staked.u128() {
+        state.total_lst_token_amount = actual_total_staked;
+    }
+
+    state.update_lst_exchange_rate(lst_total_issued, current_requested_lst_token_amount);
+
+    Ok(state)
 }

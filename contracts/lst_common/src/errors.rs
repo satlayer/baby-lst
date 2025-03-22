@@ -67,4 +67,10 @@ pub enum HubError {
 
     #[error("Only one coin can be sent to the contract")]
     OnlyOneCoinAllowed,
+
+    #[error("Burn requests not found for the specified time period")]
+    UnstakeHistoryNotFound,
+
+    #[error("No withdrawable assets are available yet")]
+    NoWithdrawableAssets,
 }

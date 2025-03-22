@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Uint128, Uint256};
+use cosmwasm_std::{Decimal, Decimal256, Uint128, Uint256};
 
 // since decimal is 18 decimals in cosmwasm, we multiply the numerator by 10^18 to balance out
 // the conversion of the denominator to atomics
@@ -15,6 +15,11 @@ pub fn decimal_multiplication(a: Uint128, b: Decimal) -> Uint128 {
     let a_u256 = Uint256::from(a);
     let b_u256 = Uint256::from(b.atomics());
     ((a_u256 * b_u256) / DECIMAL_FRACTIONAL).try_into().unwrap()
+}
+
+pub fn decimal_multiplication_256(a: Uint256, b: Decimal256) -> Uint256 {
+    let b_u256 = Uint256::from(b.atomics());
+    (a * b_u256) / DECIMAL_FRACTIONAL
 }
 
 #[cfg(test)]

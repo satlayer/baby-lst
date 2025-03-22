@@ -723,6 +723,8 @@ version = "0.0.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "schemars",
+ "serde",
  "thiserror 1.0.69",
 ]
 

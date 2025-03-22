@@ -1,12 +1,15 @@
 use cosmwasm_std::{
     attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StakingMsg, StdError, StdResult, Uint128, ValidatorResponse, WasmMsg, WasmQuery,
+    StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
-use lst_common::{errors::HubError, types::LstResult, ContractError, ValidatorError};
+use lst_common::{
+    calculate_delegations, errors::HubError, msg::ValidatorResponse, types::LstResult,
+    ContractError, ValidatorError,
+};
 
 use crate::{
-    contract::{calculate_delegations, check_slashing, query_total_lst_token_issued},
+    contract::{check_slashing, query_total_lst_token_issued},
     math::decimal_division,
     msg::QueryValidators,
     state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
@@ -92,8 +95,7 @@ pub fn execute_stake(
         return Err(ValidatorError::EmptyValidatorSet.into());
     }
 
-    let (remaining_buffered_balance, delegations) =
-        calculate_delegations(payment.amount, validators.as_slice());
+    let delegations = calculate_delegations(payment.amount, validators.as_slice())?;
 
     let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
     for i in 0..delegations.len() {
@@ -102,7 +104,7 @@ pub fn execute_stake(
         }
 
         external_call_msgs.push(CosmosMsg::Staking(StakingMsg::Delegate {
-            validator: validators[i].validator.as_ref().unwrap().address.clone(),
+            validator: validators[i].address.clone(),
             amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
         }));
     }

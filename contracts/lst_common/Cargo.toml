@@ -12,3 +12,5 @@ crate-type = ["cdylib", "rlib"]
 cosmwasm-schema.workspace = true
 cosmwasm-std.workspace = true
 thiserror.workspace = true
+schemars.workspace = true
+serde.workspace = true
