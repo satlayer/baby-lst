@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, from_json, to_json_binary, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError,
-    StdResult, Uint128, WasmMsg, WasmQuery,
+    attr, entry_point, from_json, to_json_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use cw2::set_contract_version;
@@ -289,7 +289,6 @@ pub fn receive_cw20(
                 Err(ContractError::Unauthorized {})
             }
         }
-        _ => Err(ContractError::Hub(HubError::InvalidHookMsg)),
     }
 }
 
