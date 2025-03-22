@@ -21,11 +21,6 @@ pub struct Config {
 }
 
 #[cw_serde]
-pub struct Parameters {
-    pub paused: Option<bool>,
-}
-
-#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Config)]
@@ -46,11 +41,16 @@ pub enum ExecuteMsg {
     },
     WithdrawUnstaked {},
     UpdateConfig {
-        lst_token: String,
-        staking_denom: String,
+        owner: Option<String>,
+        lst_token: Option<String>,
+        validator_registry: Option<String>,
+        reward_dispatcher: Option<String>,
     },
     UpdateParams {
-        pause: bool,
+        pause: Option<bool>,
+        staking_coin_denom: Option<String>,
+        epoch_length: Option<u64>,
+        unstaking_period: Option<u64>,
     },
     ClaimRewardsAndRestake {},
     CheckSlashing {},
@@ -63,6 +63,20 @@ pub enum ExecuteMsg {
     StakeRewards {},
 }
 
+#[cw_serde]
+#[derive(Default)]
+pub struct Parameters {
+    pub epoch_length: u64,
+    pub staking_coin_denom: String,
+    pub unstaking_period: u64,
+    #[serde(default = "default_hub_status")]
+    pub paused: bool,
+}
+
+fn default_hub_status() -> bool {
+    true
+}
+
 // check hub contract pause status
 pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
     let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -70,5 +84,5 @@ pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
         msg: to_json_binary(&QueryMsg::Parameters {})?,
     }))?;
 
-    Ok(params.paused.unwrap_or(false))
+    Ok(params.paused)
 }
