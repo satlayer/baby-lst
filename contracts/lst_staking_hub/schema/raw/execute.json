@@ -123,12 +123,6 @@
                 "null"
               ]
             },
-            "staking_coin_denom": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "unstaking_period": {
               "type": [
                 "integer",

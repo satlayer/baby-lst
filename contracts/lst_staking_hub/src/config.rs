@@ -83,7 +83,6 @@ pub fn execute_update_params(
     _env: Env,
     info: MessageInfo,
     pause: Option<bool>,
-    staking_coin_denom: Option<String>,
     epoch_length: Option<u64>,
     unstaking_period: Option<u64>,
 ) -> LstResult<Response> {
@@ -93,7 +92,7 @@ pub fn execute_update_params(
 
     let new_params = Parameters {
         paused: pause.unwrap_or(params.paused),
-        staking_coin_denom: staking_coin_denom.unwrap_or(params.staking_coin_denom),
+        staking_coin_denom: params.staking_coin_denom,
         epoch_length: epoch_length.unwrap_or(params.epoch_length),
         unstaking_period: unstaking_period.unwrap_or(params.unstaking_period),
     };

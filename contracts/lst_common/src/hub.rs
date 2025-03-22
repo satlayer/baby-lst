@@ -54,7 +54,6 @@ pub enum ExecuteMsg {
     },
     UpdateParams {
         pause: Option<bool>,
-        staking_coin_denom: Option<String>,
         epoch_length: Option<u64>,
         unstaking_period: Option<u64>,
     },

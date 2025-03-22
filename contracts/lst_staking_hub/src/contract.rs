@@ -78,20 +78,11 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     if let ExecuteMsg::UpdateParams {
         pause,
-        staking_coin_denom,
         epoch_length,
         unstaking_period,
     } = msg
     {
-        return execute_update_params(
-            deps,
-            env,
-            info,
-            pause,
-            staking_coin_denom,
-            epoch_length,
-            unstaking_period,
-        );
+        return execute_update_params(deps, env, info, pause, epoch_length, unstaking_period);
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
@@ -110,18 +101,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
             pause,
-            staking_coin_denom,
             epoch_length,
             unstaking_period,
-        } => execute_update_params(
-            deps,
-            env,
-            info,
-            pause,
-            staking_coin_denom,
-            epoch_length,
-            unstaking_period,
-        ),
+        } => execute_update_params(deps, env, info, pause, epoch_length, unstaking_period),
         ExecuteMsg::UpdateConfig {
             owner,
             lst_token,
