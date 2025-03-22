@@ -53,6 +53,12 @@ pub enum ValidatorError {
 #[derive(Error, Debug, PartialEq)]
 #[error("Hub error: {0}")]
 pub enum HubError {
+    #[error("Invalid hook message")]
+    InvalidHookMsg,
+
+    #[error("Hub is paused")]
+    Paused,
+
     #[error("Invalid amount")]
     InvalidAmount,
 

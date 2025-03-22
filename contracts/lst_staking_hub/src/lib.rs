@@ -5,7 +5,6 @@ mod error;
 pub mod math;
 pub mod msg;
 pub mod stake;
-pub mod staking;
 mod state;
 pub mod unstake;
 

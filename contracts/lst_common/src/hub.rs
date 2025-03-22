@@ -2,10 +2,15 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
     to_json_binary, CanonicalAddr, Coin, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
 };
+use cw20::Cw20ReceiveMsg;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    pub staking_token: String,
+    pub epoch_length: u64,
+    pub staking_coin_denom: String,
+    pub unstaking_period: u64,
 }
 
 #[cw_serde]
@@ -35,6 +40,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    Receive(Cw20ReceiveMsg),
     Stake {},
     Unstake {
         amount: Uint128,
@@ -52,15 +58,15 @@ pub enum ExecuteMsg {
         epoch_length: Option<u64>,
         unstaking_period: Option<u64>,
     },
-    ClaimRewardsAndRestake {},
     CheckSlashing {},
-
     RedelegateProxy {
         src_validator: String,
         redelegations: Vec<(String, Coin)>,
     },
 
     StakeRewards {},
+
+    UpdateGlobalIndex {},
 }
 
 #[cw_serde]
@@ -85,4 +91,10 @@ pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
     }))?;
 
     Ok(params.paused)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    UnStake {},
 }

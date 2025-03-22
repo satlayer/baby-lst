@@ -34,3 +34,4 @@ serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.58" }
 cw-multi-test = "2.0.0"
 cw20-base = "2.0.0"
+cw20 = "2.0.0"
