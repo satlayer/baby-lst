@@ -3,9 +3,13 @@ use cosmwasm_std::{
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
-use lst_common::validators_msg::ValidatorResponse;
+
 use lst_common::{
-    calculate_delegations, errors::HubError, types::LstResult, ContractError, ValidatorError,
+    calculate_delegations,
+    errors::HubError,
+    types::LstResult,
+    validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
+    ContractError, ValidatorError,
 };
 
 use crate::{
@@ -13,7 +17,6 @@ use crate::{
     math::decimal_division,
     state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
 };
-use lst_common::validators_msg::QueryMsg::ValidatorsDelegation;
 
 pub fn execute_stake(
     mut deps: DepsMut,

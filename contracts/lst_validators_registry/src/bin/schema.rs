@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use lst_common::validators_msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use lst_common::validator::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

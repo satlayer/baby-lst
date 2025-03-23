@@ -4,6 +4,11 @@ use cosmwasm_std::{
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
+use lst_common::{
+    delegation::calculate_undelegations, errors::HubError, hub::CurrentBatch, hub::State,
+    to_checked_address, types::LstResult, validator::ValidatorResponse, ContractError, SignedInt,
+};
+
 use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
@@ -12,11 +17,6 @@ use crate::{
         CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
-use lst_common::{
-    delegation::calculate_undelegations, errors::HubError, hub::State, to_checked_address,
-    types::LstResult, ContractError, SignedInt,
-};
-use lst_common::{hub::CurrentBatch, validators_msg::ValidatorResponse};
 
 pub(crate) fn execute_unstake(
     mut deps: DepsMut,

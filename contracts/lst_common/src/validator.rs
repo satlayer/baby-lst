@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{CanonicalAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -41,8 +41,8 @@ pub struct ValidatorResponse {
 
 #[cw_serde]
 pub struct Config {
-    pub owner: CanonicalAddr,
-    pub hub_contract: CanonicalAddr,
+    pub owner: Addr,
+    pub hub_contract: Addr,
 }
 
 #[cw_serde]
