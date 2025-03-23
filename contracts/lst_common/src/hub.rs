@@ -28,9 +28,9 @@ pub struct Config {
 #[cw_serde]
 pub struct ConfigResponse {
     pub owner: String,
-    pub reward_dispatcher_contract: String,
-    pub validators_registry_contract: String,
-    pub lst_token: String,
+    pub reward_dispatcher_contract: Option<String>,
+    pub validators_registry_contract: Option<String>,
+    pub lst_token: Option<String>,
 }
 
 #[cw_serde]
@@ -154,7 +154,7 @@ pub struct WithdrawableUnstakedResponse {
     pub withdrawable: Uint128,
 }
 
-pub type UnstakeRequest = Vec<(u64, Uint128, Uint128)>;
+pub type UnstakeRequest = Vec<(u64, Uint128)>;
 
 #[cw_serde]
 pub struct UnstakeRequestsResponse {

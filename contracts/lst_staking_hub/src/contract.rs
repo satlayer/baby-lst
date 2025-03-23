@@ -16,8 +16,8 @@ use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::query::{
-    query_current_batch, query_unstake_requests, query_unstake_requests_limitation,
-    query_withdrawable_unstaked,
+    query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
+    query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
 use crate::state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
@@ -133,29 +133,20 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
-        QueryMsg::Config {} => {
-            let config = CONFIG.load(deps.storage)?;
-            Ok(to_json_binary(&config)?)
-        }
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::ExchangeRate {} => {
-            let state = STATE.load(deps.storage)?;
+            let state = query_state(deps, env)?;
             Ok(to_json_binary(&state.lst_exchange_rate)?)
         }
-        QueryMsg::Parameters {} => {
-            let params = PARAMETERS.load(deps.storage)?;
-            Ok(to_json_binary(&params)?)
-        }
-        QueryMsg::State {} => {
-            let state = STATE.load(deps.storage)?;
-            Ok(to_json_binary(&state)?)
-        }
+        QueryMsg::Parameters {} => Ok(to_json_binary(&query_parameters(deps)?)?),
+        QueryMsg::State {} => Ok(to_json_binary(&query_state(deps, env)?)?),
         QueryMsg::CurrentBatch {} => Ok(to_json_binary(&query_current_batch(deps)?)?),
         QueryMsg::WithdrawableUnstaked { address } => Ok(to_json_binary(
             &query_withdrawable_unstaked(deps, env, address)?,
         )?),
-        QueryMsg::UnstakeRequests { address } => Ok(to_json_binary(&query_unstake_requests(
-            deps, env, address,
-        )?)?),
+        QueryMsg::UnstakeRequests { address } => {
+            Ok(to_json_binary(&query_unstake_requests(deps, address)?)?)
+        }
         QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
             &query_unstake_requests_limitation(deps, start_from, limit)?,
         )?),
@@ -195,7 +186,7 @@ pub(crate) fn query_total_lst_token_issued(deps: Deps) -> StdResult<Uint128> {
     Ok(token_info.total_supply)
 }
 
-fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
+pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
     let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
