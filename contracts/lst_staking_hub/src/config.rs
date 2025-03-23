@@ -1,22 +1,117 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    attr, Addr, CosmosMsg, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response,
+};
 
-use lst_common::ContractError;
+use lst_common::{
+    hub::{Config, Parameters},
+    to_canoncial_addr,
+    types::LstResult,
+    ContractError,
+};
+
+use crate::state::{CONFIG, PARAMETERS};
 
 pub fn execute_update_config(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
-    _lst_token: String,
-    _staking_denom: String,
-) -> Result<Response, ContractError> {
-    todo!()
+    info: MessageInfo,
+    owner: Option<String>,
+    lst_token: Option<String>,
+    validator_registry: Option<String>,
+    reward_dispatcher: Option<String>,
+) -> LstResult<Response> {
+    is_authorized_sender(deps.as_ref(), info.sender)?;
+
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    if let Some(owner_addr) = owner {
+        config.owner = to_canoncial_addr(deps.as_ref(), owner_addr.as_str())?;
+    }
+
+    if let Some(token) = lst_token {
+        config.lst_token = Some(to_canoncial_addr(deps.as_ref(), token.as_str())?);
+    }
+
+    if let Some(registry) = validator_registry {
+        config.validators_registry_contract =
+            Some(to_canoncial_addr(deps.as_ref(), registry.as_str())?);
+    }
+
+    if let Some(dispatcher) = reward_dispatcher {
+        config.reward_dispatcher_contract =
+            Some(to_canoncial_addr(deps.as_ref(), dispatcher.as_str())?);
+
+        messages.push(CosmosMsg::Distribution(
+            DistributionMsg::SetWithdrawAddress {
+                address: dispatcher,
+            },
+        ));
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "update_config")
+        .add_attributes(vec![
+            attr("owner", config.owner.to_string()),
+            attr(
+                "lst_token",
+                config
+                    .lst_token
+                    .map_or(String::from("None"), |a| a.to_string()),
+            ),
+            attr(
+                "reward_dispatcher",
+                config
+                    .reward_dispatcher_contract
+                    .map_or(String::from("None"), |a| a.to_string()),
+            ),
+            attr(
+                "validator_registry",
+                config
+                    .validators_registry_contract
+                    .map_or(String::from("None"), |a| a.to_string()),
+            ),
+        ]))
 }
 
 pub fn execute_update_params(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
-    _pause: bool,
-) -> Result<Response, ContractError> {
-    todo!()
+    info: MessageInfo,
+    pause: Option<bool>,
+    epoch_length: Option<u64>,
+    unstaking_period: Option<u64>,
+) -> LstResult<Response> {
+    is_authorized_sender(deps.as_ref(), info.sender)?;
+
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+
+    let new_params = Parameters {
+        paused: pause.unwrap_or(params.paused),
+        staking_coin_denom: params.staking_coin_denom,
+        epoch_length: epoch_length.unwrap_or(params.epoch_length),
+        unstaking_period: unstaking_period.unwrap_or(params.unstaking_period),
+    };
+
+    PARAMETERS.save(deps.storage, &new_params)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_params"),
+        attr("paused", new_params.paused.to_string()),
+        attr("staking_coin_denom", new_params.staking_coin_denom.clone()),
+        attr("epoch_length", new_params.epoch_length.to_string()),
+        attr("unstaking_period", new_params.unstaking_period.to_string()),
+    ]))
+}
+
+fn is_authorized_sender(deps: Deps, sender: Addr) -> LstResult<()> {
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
+    if to_canoncial_addr(deps, sender.as_str())? != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    Ok(())
 }

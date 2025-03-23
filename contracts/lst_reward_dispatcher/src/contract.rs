@@ -10,10 +10,8 @@ use lst_common::{
     types::LstResult,
 };
 
-use crate::{
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{CONFIG, Config},
-};
+use crate::state::CONFIG;
+use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 const CONTRACT_NAME: &str = "crates.io:reward-dispatcher";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
