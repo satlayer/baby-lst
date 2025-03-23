@@ -1,12 +1,10 @@
 [workspace]
-members = [
-  "contracts/*"
-]
+members = ["contracts/*"]
 
 [workspace.package]
 authors = ["Satlayer"]
 repository = "https://github.com/satlayer/satlayer-lst"
-version="0.0.1"
+version = "0.0.1"
 edition = "2021"
 
 [profile.release]
@@ -35,4 +33,5 @@ schemars = "0.8.16"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.58" }
 cw-multi-test = "2.0.0"
-
+cw20-base = "2.0.0"
+cw20 = "2.0.0"

@@ -74,7 +74,7 @@ jobs:
 
       - name: Generate schema
         run: |
-          ../scripts/generate_schema.sh lst_token lst_validators_registry lst_reward_dispatcher
+          ../scripts/generate_schema.sh lst_token lst_validators_registry lst_reward_dispatcher lst_staking_hub
 
       - name: Verify schema
         uses: tj-actions/verify-changed-files@v14

@@ -9,7 +9,7 @@ RUSTC_VERS="1.85.0"
 
 MAX_WASM_SIZE=800 # 800 KB
 
-PROJECTS=("lst_token" "lst_reward_dispatcher" "lst_validators_registry" "lst_staking_hub")
+PROJECTS=("lst_token")
 
 if ! which wasm-opt; then
   curl -OL $BINARYEN_DWN
@@ -31,10 +31,6 @@ cargo clippy --fix --allow-dirty
 cargo fmt --all
 cargo clean
 
-REPO_PATH=$(git rev-parse --show-toplevel)
-
-source $REPO_PATH/scripts/helper.sh
-
 rustup target add wasm32-unknown-unknown
 cargo install cosmwasm-check@2.1.0 --locked
 
@@ -50,6 +46,18 @@ done
 
 # check all generated wasm files
 cosmwasm-check artifacts/lst_token.wasm
+
+# Update version
+get_version() {
+    local cargo_toml="contracts/$1/Cargo.toml"
+    version=$(grep -m 1 "version" "$cargo_toml" | awk -F '"' '{print $2}')
+    if [ ! -z "$version" ];then
+        echo $version
+    else
+        # Echo version from root workspace Cargo.toml
+        echo $(grep -m 1 "version" Cargo.toml | awk -F '"' '{print $2}')
+    fi
+}
 
 # Rename filename with version in it
 rename_wasm_with_version() {

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Parameters",
+  "type": "object",
+  "required": [
+    "epoch_length",
+    "staking_coin_denom",
+    "unstaking_period"
+  ],
+  "properties": {
+    "epoch_length": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "paused": {
+      "default": true,
+      "type": "boolean"
+    },
+    "staking_coin_denom": {
+      "type": "string"
+    },
+    "unstaking_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "additionalProperties": false
+}

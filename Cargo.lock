@@ -723,6 +723,9 @@ version = "0.0.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
  "thiserror 1.0.69",
 ]
 
@@ -750,6 +753,8 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
+ "cw20",
+ "cw20-base",
  "lst_common",
  "schemars",
  "serde",
