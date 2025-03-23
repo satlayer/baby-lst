@@ -1,8 +1,5 @@
-use cosmwasm_schema::{QueryResponses, cw_serde};
-
-use lst_common::msg::ValidatorResponse;
-
-use crate::state::{Config, Validator};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{CanonicalAddr, Uint128};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -33,4 +30,22 @@ pub enum QueryMsg {
     ValidatorsDelegation {},
     #[returns(Config)]
     Config {},
+}
+
+#[cw_serde]
+pub struct ValidatorResponse {
+    #[serde(default)]
+    pub total_delegated: Uint128,
+    pub address: String,
+}
+
+#[cw_serde]
+pub struct Config {
+    pub owner: CanonicalAddr,
+    pub hub_contract: CanonicalAddr,
+}
+
+#[cw_serde]
+pub struct Validator {
+    pub address: String,
 }

@@ -5,6 +5,7 @@ pub mod msg;
 pub mod rewards_msg;
 mod signed_integer;
 pub mod types;
+pub mod validators_msg;
 
 pub use crate::signed_integer::SignedInt;
 use cosmwasm_std::{Addr, CanonicalAddr, Deps};
