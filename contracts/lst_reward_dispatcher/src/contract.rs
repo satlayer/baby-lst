@@ -6,7 +6,7 @@ use cw2::set_contract_version;
 use lst_common::{
     ContractError, MigrateMsg,
     hub::{ExecuteMsg::StakeRewards, is_paused},
-    to_canoncial_addr, to_checked_address,
+    to_checked_address,
     types::LstResult,
 };
 
@@ -34,16 +34,10 @@ pub fn instantiate(
     } = msg;
 
     let config = Config {
-        owner: to_canoncial_addr(deps.as_ref(), info.sender.as_str())?,
-        hub_contract: to_canoncial_addr(
-            deps.as_ref(),
-            to_checked_address(deps.as_ref(), &hub_contract)?.as_str(),
-        )?,
+        owner: info.sender,
+        hub_contract: to_checked_address(deps.as_ref(), &hub_contract)?,
         reward_denom,
-        satlayer_fee_addr: to_canoncial_addr(
-            deps.as_ref(),
-            to_checked_address(deps.as_ref(), &satlayer_fee_addr)?.as_str(),
-        )?,
+        satlayer_fee_addr: to_checked_address(deps.as_ref(), &satlayer_fee_addr)?,
         satlayer_fee_rate,
     };
 
@@ -84,15 +78,12 @@ fn execute_update_config(
 ) -> LstResult<Response> {
     let config: Config = query_config(deps.as_ref())?;
 
-    if deps.api.addr_humanize(&config.owner)? != info.sender {
+    if config.owner != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
     if let Some(o) = owner {
-        let owner_addr = to_canoncial_addr(
-            deps.as_ref(),
-            to_checked_address(deps.as_ref(), &o)?.as_str(),
-        )?;
+        let owner_addr = to_checked_address(deps.as_ref(), &o)?;
 
         CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
             prev_config.owner = owner_addr;
@@ -101,10 +92,7 @@ fn execute_update_config(
     }
 
     if let Some(h) = hub_contract {
-        let hub_addr = to_canoncial_addr(
-            deps.as_ref(),
-            to_checked_address(deps.as_ref(), &h)?.as_str(),
-        )?;
+        let hub_addr = to_checked_address(deps.as_ref(), &h)?;
 
         CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
             prev_config.hub_contract = hub_addr;
@@ -113,10 +101,7 @@ fn execute_update_config(
     }
 
     if let Some(s) = satlayer_fee_addr {
-        let fee_addr = to_canoncial_addr(
-            deps.as_ref(),
-            to_checked_address(deps.as_ref(), &s)?.as_str(),
-        )?;
+        let fee_addr = to_checked_address(deps.as_ref(), &s)?;
 
         CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
             prev_config.satlayer_fee_addr = fee_addr;
@@ -146,7 +131,7 @@ fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> LstRe
         return Err(ContractError::HubPaused);
     }
 
-    if deps.api.addr_humanize(&hub_addr)? != info.sender {
+    if hub_addr != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 

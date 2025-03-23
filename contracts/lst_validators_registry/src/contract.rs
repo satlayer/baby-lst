@@ -34,8 +34,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_canonicalize(info.sender.as_str())?,
-            hub_contract: deps.api.addr_canonicalize(hub_contract.as_str())?,
+            owner: info.sender,
+            hub_contract: hub_contract,
         },
     )?;
 
@@ -78,10 +78,7 @@ fn add_validator(
         hub_contract,
     } = CONFIG.load(deps.storage)?;
 
-    let owner_addr = deps.api.addr_humanize(&owner)?;
-    let hub_addr = deps.api.addr_humanize(&hub_contract)?;
-
-    if !(info.sender == owner_addr || info.sender == hub_addr) {
+    if !(info.sender == owner || info.sender == hub_contract) {
         return Err(ContractError::Unauthorized {});
     }
     let val_checked_address = to_checked_address(deps.as_ref(), validator.address.as_str())?;
@@ -100,10 +97,7 @@ fn remove_validator(
         hub_contract,
     } = CONFIG.load(deps.storage)?;
 
-    let owner_addr = deps.api.addr_humanize(&owner)?;
-    let hub_addr = deps.api.addr_humanize(&hub_contract)?;
-
-    if info.sender != owner_addr {
+    if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -117,7 +111,7 @@ fn remove_validator(
 
     let delegation = match deps
         .querier
-        .query_delegation(hub_addr.clone(), validator_addr.clone())?
+        .query_delegation(hub_contract.clone(), validator_addr.clone())?
     {
         Some(delegation) if delegation.can_redelegate.amount >= delegation.amount.amount => {
             delegation
@@ -140,7 +134,7 @@ fn remove_validator(
         .collect::<Vec<_>>();
 
     let message = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_addr.clone().into_string(),
+        contract_addr: hub_contract.into_string(),
         msg: to_json_binary(&RedelegateProxy {
             src_validator: validator_addr,
             redelegations,
@@ -162,16 +156,14 @@ fn update_config(
 ) -> LstResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
-    let owner_addr = deps.api.addr_humanize(&config.owner)?;
+    let owner_addr = config.owner;
 
     if info.sender != owner_addr {
         return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
-        let owner_raw = deps
-            .api
-            .addr_canonicalize(to_checked_address(deps.as_ref(), owner.as_str())?.as_str())?;
+        let owner_raw = to_checked_address(deps.as_ref(), owner.as_str())?;
         CONFIG.update(deps.storage, |mut old_config| -> LstResult<Config> {
             old_config.owner = owner_raw;
             Ok(old_config)
@@ -179,9 +171,7 @@ fn update_config(
     }
 
     if let Some(hub_contract) = hub_contract {
-        let hub_addr_raw = deps.api.addr_canonicalize(
-            to_checked_address(deps.as_ref(), hub_contract.as_str())?.as_str(),
-        )?;
+        let hub_addr_raw = to_checked_address(deps.as_ref(), hub_contract.as_str())?;
         CONFIG.update(deps.storage, |mut old_config| -> LstResult<Config> {
             old_config.hub_contract = hub_addr_raw;
             Ok(old_config)
@@ -212,7 +202,7 @@ fn query_validators(deps: Deps) -> LstResult<Vec<ValidatorResponse>> {
     let mut delegations = HashMap::<String, Uint128>::new();
 
     deps.querier
-        .query_all_delegations(&deps.api.addr_humanize(&hub_contract)?)?
+        .query_all_delegations(&hub_contract)?
         .into_iter()
         .for_each(|delegation| {
             delegations.insert(delegation.validator, delegation.amount.amount);
