@@ -61,9 +61,7 @@ pub(crate) fn execute_unstake(
 
     // send burn message to the token contract
     let config = CONFIG.load(deps.storage)?;
-    let lst_token_addr = deps
-        .api
-        .addr_humanize(&config.lst_token.ok_or(HubError::LstTokenNotSet)?)?;
+    let lst_token_addr = config.lst_token.ok_or(HubError::LstTokenNotSet)?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

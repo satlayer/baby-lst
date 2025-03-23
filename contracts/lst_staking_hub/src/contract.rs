@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     attr, entry_point, from_json, to_json_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult,
-    Uint128, WasmMsg, WasmQuery,
+    DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use cw2::set_contract_version;
@@ -33,11 +33,8 @@ pub fn instantiate(
 ) -> LstResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let sender = info.sender;
-    let sender_raw = deps.api.addr_canonicalize(sender.as_str())?;
-
     let data = Config {
-        owner: sender_raw,
+        owner: info.sender,
         lst_token: None,
         validators_registry_contract: None,
         reward_dispatcher_contract: None,
@@ -127,15 +124,15 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
-            to_json_binary(&config)
+            Ok(to_json_binary(&config)?)
         }
         QueryMsg::TotalStaked {} => {
             let total = TOTAL_STAKED.load(deps.storage)?;
-            to_json_binary(&total)
+            Ok(to_json_binary(&total)?)
         }
         QueryMsg::ExchangeRate {} => {
             todo!()
@@ -162,13 +159,12 @@ pub fn check_slashing(deps: &mut DepsMut, env: Env) -> LstResult<State> {
     Ok(state)
 }
 
-pub(crate) fn query_total_lst_token_issued(deps: Deps) -> StdResult<Uint128> {
-    let token_address = deps.api.addr_humanize(
-        &CONFIG
-            .load(deps.storage)?
-            .lst_token
-            .ok_or_else(|| StdError::generic_err("LST token address is not set"))?,
-    )?;
+pub(crate) fn query_total_lst_token_issued(deps: Deps) -> LstResult<Uint128> {
+    let token_address = &CONFIG
+        .load(deps.storage)?
+        .lst_token
+        .ok_or(HubError::LstTokenNotSet)?;
+
     let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: token_address.to_string(),
         msg: to_json_binary(&Cw20QueryMsg::TokenInfo {})?,
@@ -223,13 +219,13 @@ pub fn execute_redelegate_proxy(
     src_validator: String,
     redelegations: Vec<(String, Coin)>,
 ) -> LstResult<Response> {
-    let sender_contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let sender = info.sender;
     let config = CONFIG.load(deps.storage)?;
     let validator_registry_addr = config
         .validators_registry_contract
         .ok_or_else(|| ContractError::Hub(HubError::ValidatorRegistryNotSet))?;
 
-    if sender_contract_addr != validator_registry_addr && sender_contract_addr != config.owner {
+    if sender != validator_registry_addr && sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -255,8 +251,6 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> LstResult<Response> {
-    let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-
     // only lst token contract can execute this message
     let config = CONFIG.load(deps.storage)?;
     let lst_token_addr = config
@@ -265,7 +259,7 @@ pub fn receive_cw20(
 
     match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::UnStake {} => {
-            if contract_addr == lst_token_addr {
+            if info.sender == lst_token_addr {
                 execute_unstake(deps, env, cw20_msg.amount, info.sender.to_string())
             } else {
                 Err(ContractError::Unauthorized {})
@@ -278,18 +272,16 @@ pub fn execute_update_global_index(deps: DepsMut, env: Env) -> LstResult<Respons
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
-    let reward_address = deps.api.addr_humanize(
-        &config
-            .reward_dispatcher_contract
-            .ok_or_else(|| ContractError::Hub(HubError::RewardDispatcherNotSet))?,
-    );
+    let reward_address = &config
+        .reward_dispatcher_contract
+        .ok_or(HubError::RewardDispatcherNotSet)?;
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
     messages.append(&mut withdraw_msgs);
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address?.to_string(),
+        contract_addr: reward_address.to_string(),
         msg: to_json_binary(&DispatchRewards {})?,
         funds: vec![],
     }));

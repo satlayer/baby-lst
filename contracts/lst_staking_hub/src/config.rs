@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use lst_common::{
     hub::{Config, Parameters},
-    to_canoncial_addr,
+    to_checked_address,
     types::LstResult,
     ContractError,
 };
@@ -27,25 +27,24 @@ pub fn execute_update_config(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(owner_addr) = owner {
-        config.owner = to_canoncial_addr(deps.as_ref(), owner_addr.as_str())?;
+        config.owner = to_checked_address(deps.as_ref(), &owner_addr)?;
     }
 
     if let Some(token) = lst_token {
-        config.lst_token = Some(to_canoncial_addr(deps.as_ref(), token.as_str())?);
+        config.lst_token = Some(to_checked_address(deps.as_ref(), &token)?);
     }
 
     if let Some(registry) = validator_registry {
-        config.validators_registry_contract =
-            Some(to_canoncial_addr(deps.as_ref(), registry.as_str())?);
+        config.validators_registry_contract = Some(to_checked_address(deps.as_ref(), &registry)?);
     }
 
     if let Some(dispatcher) = reward_dispatcher {
-        config.reward_dispatcher_contract =
-            Some(to_canoncial_addr(deps.as_ref(), dispatcher.as_str())?);
+        let checked_dispatcher = to_checked_address(deps.as_ref(), &dispatcher)?;
+        config.reward_dispatcher_contract = Some(checked_dispatcher.clone());
 
         messages.push(CosmosMsg::Distribution(
             DistributionMsg::SetWithdrawAddress {
-                address: dispatcher,
+                address: checked_dispatcher.to_string(),
             },
         ));
     }
@@ -110,7 +109,7 @@ pub fn execute_update_params(
 
 fn is_authorized_sender(deps: Deps, sender: Addr) -> LstResult<()> {
     let Config { owner, .. } = CONFIG.load(deps.storage)?;
-    if to_canoncial_addr(deps, sender.as_str())? != owner {
+    if sender != owner {
         return Err(ContractError::Unauthorized {});
     }
     Ok(())

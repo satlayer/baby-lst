@@ -18,7 +18,7 @@ pub fn decimal_multiplication(a: Uint128, b: Decimal) -> Uint128 {
 }
 
 pub fn decimal_multiplication_256(a: Uint256, b: Decimal256) -> Uint256 {
-    let b_u256 = Uint256::from(b.atomics());
+    let b_u256 = b.atomics();
     (a * b_u256) / DECIMAL_FRACTIONAL
 }
 
