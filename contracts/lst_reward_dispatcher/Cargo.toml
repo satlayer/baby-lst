@@ -17,5 +17,7 @@ cosmwasm-std.workspace = true
 cw2.workspace = true
 cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true
+serde_json.workspace = true
+cw-multi-test.workspace = true
 
 lst_common = { path = "../lst_common" }
