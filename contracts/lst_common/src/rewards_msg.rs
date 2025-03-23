@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{CanonicalAddr, Decimal};
+use cosmwasm_std::{Addr, Decimal};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -29,9 +29,9 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct Config {
-    pub owner: CanonicalAddr,
-    pub hub_contract: CanonicalAddr,
+    pub owner: Addr,
+    pub hub_contract: Addr,
     pub reward_denom: String,
-    pub satlayer_fee_addr: CanonicalAddr,
+    pub satlayer_fee_addr: Addr,
     pub satlayer_fee_rate: Decimal,
 }
