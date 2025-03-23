@@ -8,15 +8,19 @@ use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
 use lst_common::errors::HubError;
-use lst_common::hub::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg};
+use lst_common::hub::{
+    Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+};
 use lst_common::types::LstResult;
 use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::stake::execute_stake;
-use crate::state::{
-    CurrentBatch, StakeType, State, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, TOTAL_STAKED,
+use crate::query::{
+    query_current_batch, query_unstake_requests, query_unstake_requests_limitation,
+    query_withdrawable_unstaked,
 };
+use crate::stake::execute_stake;
+use crate::state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
@@ -127,20 +131,34 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
-            to_json_binary(&config)
-        }
-        QueryMsg::TotalStaked {} => {
-            let total = TOTAL_STAKED.load(deps.storage)?;
-            to_json_binary(&total)
+            Ok(to_json_binary(&config)?)
         }
         QueryMsg::ExchangeRate {} => {
-            todo!()
+            let state = STATE.load(deps.storage)?;
+            Ok(to_json_binary(&state.lst_exchange_rate)?)
         }
-        QueryMsg::Parameters {} => todo!(),
+        QueryMsg::Parameters {} => {
+            let params = PARAMETERS.load(deps.storage)?;
+            Ok(to_json_binary(&params)?)
+        }
+        QueryMsg::State {} => {
+            let state = STATE.load(deps.storage)?;
+            Ok(to_json_binary(&state)?)
+        }
+        QueryMsg::CurrentBatch {} => Ok(to_json_binary(&query_current_batch(deps)?)?),
+        QueryMsg::WithdrawableUnstaked { address } => Ok(to_json_binary(
+            &query_withdrawable_unstaked(deps, env, address)?,
+        )?),
+        QueryMsg::UnstakeRequests { address } => Ok(to_json_binary(&query_unstake_requests(
+            deps, env, address,
+        )?)?),
+        QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
+            &query_unstake_requests_limitation(deps, start_from, limit)?,
+        )?),
     }
 }
 

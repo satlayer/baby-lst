@@ -8,16 +8,15 @@ use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, read_unstake_history, remove_unstake_wait_list, CurrentBatch, State,
-        UnStakeHistory, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
-        UNSTAKE_WAIT_LIST,
+        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
+        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
-use lst_common::validators_msg::ValidatorResponse;
 use lst_common::{
     delegation::calculate_undelegations, errors::HubError, hub::State, to_checked_address,
     types::LstResult, ContractError, SignedInt,
 };
+use lst_common::{hub::CurrentBatch, validators_msg::ValidatorResponse};
 
 pub(crate) fn execute_unstake(
     mut deps: DepsMut,
