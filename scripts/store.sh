@@ -15,7 +15,7 @@ source $REPO_PATH/scripts/helper.sh
 
 cd $REPO_PATH
 
-ARTIFACTS=("lst_token" "lst_reward_dispatcher")
+ARTIFACTS=("lst_token" "lst_reward_dispatcher" "lst_validators_registry" "lst_staking_hub")
 
 get_wasm_with_version() {
     local contract="$1"
