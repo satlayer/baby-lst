@@ -5,17 +5,16 @@ use cosmwasm_std::{
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    delegation::calculate_undelegations, errors::HubError, msg::ValidatorResponse,
-    to_checked_address, types::LstResult, ContractError, SignedInt,
+    delegation::calculate_undelegations, errors::HubError, hub::CurrentBatch, hub::State,
+    to_checked_address, types::LstResult, validator::ValidatorResponse, ContractError, SignedInt,
 };
 
 use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, read_unstake_history, remove_unstake_wait_list, CurrentBatch, State,
-        UnStakeHistory, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
-        UNSTAKE_WAIT_LIST,
+        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
+        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 

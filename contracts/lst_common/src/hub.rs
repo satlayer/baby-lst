@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
-    to_json_binary, CanonicalAddr, Coin, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    to_json_binary, CanonicalAddr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -26,16 +26,41 @@ pub struct Config {
 }
 
 #[cw_serde]
+pub struct ConfigResponse {
+    pub owner: String,
+    pub reward_dispatcher_contract: Option<String>,
+    pub validators_registry_contract: Option<String>,
+    pub lst_token: Option<String>,
+}
+
+#[cw_serde]
+pub struct CurrentBatch {
+    pub id: u64,
+    pub requested_lst_token_amount: Uint128,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Config)]
+    #[returns(ConfigResponse)]
     Config {},
+    #[returns(State)]
+    State {},
+    #[returns(CurrentBatch)]
+    CurrentBatch {},
     #[returns(Parameters)]
     Parameters {},
     #[returns(Uint128)]
-    TotalStaked {},
-    #[returns(Uint128)]
     ExchangeRate {},
+    #[returns(WithdrawableUnstakedResponse)]
+    WithdrawableUnstaked { address: String },
+    #[returns(UnstakeRequestsResponse)]
+    UnstakeRequests { address: String },
+    #[returns(AllHistoryResponse)]
+    AllHistory {
+        start_from: Option<u64>,
+        limit: Option<u32>,
+    },
 }
 
 #[cw_serde]
@@ -68,6 +93,32 @@ pub enum ExecuteMsg {
     UpdateGlobalIndex {},
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct State {
+    pub lst_exchange_rate: Decimal,
+    pub total_lst_token_amount: Uint128,
+    pub last_index_modification: u64,
+    pub prev_hub_balance: Uint128,
+    pub last_unbonded_time: u64,
+    pub last_processed_batch: u64,
+}
+
+impl State {
+    pub fn update_lst_exchange_rate(
+        &mut self,
+        total_issued_lst_token: Uint128,
+        requested_lst_token_amount: Uint128,
+    ) {
+        let actual_supply = total_issued_lst_token + requested_lst_token_amount;
+        if self.total_lst_token_amount.is_zero() || actual_supply.is_zero() {
+            self.lst_exchange_rate = Decimal::one();
+        } else {
+            self.lst_exchange_rate =
+                Decimal::from_ratio(self.total_lst_token_amount, actual_supply);
+        }
+    }
+}
+
 #[cw_serde]
 #[derive(Default)]
 pub struct Parameters {
@@ -96,4 +147,22 @@ pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     UnStake {},
+}
+
+#[cw_serde]
+pub struct WithdrawableUnstakedResponse {
+    pub withdrawable: Uint128,
+}
+
+pub type UnstakeRequest = Vec<(u64, Uint128)>;
+
+#[cw_serde]
+pub struct UnstakeRequestsResponse {
+    pub address: String,
+    pub requests: UnstakeRequest,
+}
+
+#[cw_serde]
+pub struct AllHistoryResponse {
+    pub history: Vec<UnstakeRequestsResponse>,
 }

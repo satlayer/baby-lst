@@ -7,14 +7,15 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use lst_common::{
-    ContractError, MigrateMsg, calculate_delegations, errors::ValidatorError,
-    hub::ExecuteMsg::RedelegateProxy, msg::ValidatorResponse, to_checked_address, types::LstResult,
+    ContractError, MigrateMsg, calculate_delegations,
+    errors::ValidatorError,
+    hub::ExecuteMsg::RedelegateProxy,
+    to_checked_address,
+    types::LstResult,
+    validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
 };
 
-use crate::{
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{CONFIG, Config, VALIDATOR_REGISTRY, Validator},
-};
+use crate::state::{CONFIG, VALIDATOR_REGISTRY};
 
 const CONTRACT_NAME: &str = "crates.io:validator-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

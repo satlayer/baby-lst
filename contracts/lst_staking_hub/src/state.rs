@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Decimal, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use lst_common::{
     errors::HubError,
-    hub::{Config, Parameters},
+    hub::{Config, CurrentBatch, Parameters, State},
     types::LstResult,
 };
 use schemars::JsonSchema;
@@ -16,44 +16,11 @@ pub const STATE: Item<State> = Item::new(STATE_KEY);
 
 pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
 pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
-pub const TOTAL_STAKED: Item<Uint128> = Item::new("total_staked");
 
 #[derive(PartialEq)]
 pub enum StakeType {
     LSTMint,
     StakeRewards,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatch {
-    pub id: u64,
-    pub requested_lst_token_amount: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct State {
-    pub lst_exchange_rate: Decimal,
-    pub total_lst_token_amount: Uint128,
-    pub last_index_modification: u64,
-    pub prev_hub_balance: Uint128,
-    pub last_unbonded_time: u64,
-    pub last_processed_batch: u64,
-}
-
-impl State {
-    pub fn update_lst_exchange_rate(
-        &mut self,
-        total_issued_lst_token: Uint128,
-        requested_lst_token_amount: Uint128,
-    ) {
-        let actual_supply = total_issued_lst_token + requested_lst_token_amount;
-        if self.total_lst_token_amount.is_zero() || actual_supply.is_zero() {
-            self.lst_exchange_rate = Decimal::one();
-        } else {
-            self.lst_exchange_rate =
-                Decimal::from_ratio(self.total_lst_token_amount, actual_supply);
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
