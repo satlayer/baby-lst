@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use lst_common::{
     ContractError, MigrateMsg, calculate_delegations,
     errors::ValidatorError,
-    hub::ExecuteMsg::RedelegateProxy,
+    hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
     types::LstResult,
     validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
@@ -134,16 +134,25 @@ fn remove_validator(
         })
         .collect::<Vec<_>>();
 
-    let message = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract.into_string(),
+    let hub_contract_string = hub_contract.to_string();
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract_string.clone(),
         msg: to_json_binary(&RedelegateProxy {
             src_validator: validator_addr,
             redelegations,
         })?,
         funds: vec![],
-    });
+    }));
 
-    Ok(Response::new().add_message(message))
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract_string,
+        msg: to_json_binary(&UpdateGlobalIndex {})?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new().add_messages(messages))
 }
 
 // Update validator registry contract config. owner/hub_contract

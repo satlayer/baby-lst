@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
-    to_json_binary, CanonicalAddr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    to_json_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -16,13 +16,13 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub struct Config {
     // address of the owner of the contract
-    pub owner: CanonicalAddr,
+    pub owner: Addr,
     // address of the reward dispatcher contract
-    pub reward_dispatcher_contract: Option<CanonicalAddr>,
+    pub reward_dispatcher_contract: Option<Addr>,
     // optional address of the validators registry contract
-    pub validators_registry_contract: Option<CanonicalAddr>,
+    pub validators_registry_contract: Option<Addr>,
     // token address of the lst token
-    pub lst_token: Option<CanonicalAddr>,
+    pub lst_token: Option<Addr>,
 }
 
 #[cw_serde]

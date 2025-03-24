@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    StakingMsg, Uint128, WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
@@ -30,11 +30,9 @@ pub fn execute_stake(
     let config = CONFIG.load(deps.storage)?;
     let sender = info.sender.clone();
 
-    let reward_dispatcher_address = deps.api.addr_humanize(
-        &config
-            .reward_dispatcher_contract
-            .ok_or(HubError::RewardDispatcherNotSet)?,
-    )?;
+    let reward_dispatcher_address = &config
+        .reward_dispatcher_contract
+        .ok_or(HubError::RewardDispatcherNotSet)?;
 
     //If stake type is StakeRewards, we need to check if the sender is the reward dispatcher contract
     if stake_type == StakeType::StakeRewards && sender != reward_dispatcher_address {
@@ -67,7 +65,7 @@ pub fn execute_stake(
     total_supply += mint_amount;
 
     // state update
-    STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
+    STATE.update(deps.storage, |mut prev_state| -> LstResult<_> {
         match stake_type {
             StakeType::LSTMint => {
                 prev_state.total_lst_token_amount += payment.amount;
@@ -82,18 +80,13 @@ pub fn execute_stake(
     })?;
 
     //validators management
-    let validators_registry_contract =
-        if let Some(validators_registry_contract) = config.validators_registry_contract {
-            deps.api
-                .addr_humanize(&validators_registry_contract)?
-                .to_string()
-        } else {
-            return Err(HubError::ValidatorRegistryNotSet.into());
-        };
+    let validators_registry_contract = config
+        .validators_registry_contract
+        .ok_or(HubError::ValidatorRegistryNotSet)?;
 
     let validators: Vec<ValidatorResponse> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: validators_registry_contract,
+            contract_addr: validators_registry_contract.to_string(),
             msg: to_json_binary(&ValidatorsDelegation {})?,
         }))?;
 
@@ -133,11 +126,7 @@ pub fn execute_stake(
         amount: mint_amount,
     };
 
-    let token_address = deps.api.addr_humanize(
-        &config
-            .lst_token
-            .ok_or_else(|| StdError::generic_err("LST token address is not set"))?,
-    )?;
+    let token_address = config.lst_token.ok_or(HubError::LstTokenNotSet)?;
 
     external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),

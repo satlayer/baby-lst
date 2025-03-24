@@ -2,8 +2,8 @@ use cosmwasm_std::{Addr, Deps, Env, Storage, Uint128};
 use cw_storage_plus::Bound;
 use lst_common::{
     hub::{
-        AllHistoryResponse, ConfigResponse, CurrentBatch, Parameters, State, UnstakeRequest,
-        UnstakeRequestsResponse, WithdrawableUnstakedResponse,
+        AllHistoryResponse, Config, ConfigResponse, CurrentBatch, Parameters, State,
+        UnstakeRequest, UnstakeRequestsResponse, WithdrawableUnstakedResponse,
     },
     to_checked_address,
     types::LstResult,
@@ -19,29 +19,18 @@ use crate::{
 };
 
 pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let owner = deps.api.addr_humanize(&config.owner)?.to_string();
-
-    let reward_dispatcher_contract = config
-        .reward_dispatcher_contract
-        .map(|addr| deps.api.addr_humanize(&addr).map(|a| a.to_string()))
-        .transpose()?;
-
-    let validators_registry_contract = config
-        .validators_registry_contract
-        .map(|addr| deps.api.addr_humanize(&addr).map(|a| a.to_string()))
-        .transpose()?;
-
-    let lst_token = config
-        .lst_token
-        .map(|addr| deps.api.addr_humanize(&addr).map(|a| a.to_string()))
-        .transpose()?;
-
-    Ok(ConfigResponse {
+    let Config {
         owner,
         reward_dispatcher_contract,
         validators_registry_contract,
         lst_token,
+    } = CONFIG.load(deps.storage)?;
+
+    Ok(ConfigResponse {
+        owner: owner.to_string(),
+        reward_dispatcher_contract: reward_dispatcher_contract.map(|addr| addr.to_string()),
+        validators_registry_contract: validators_registry_contract.map(|addr| addr.to_string()),
+        lst_token: lst_token.map(|addr| addr.to_string()),
     })
 }
 
