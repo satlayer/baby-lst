@@ -3,15 +3,18 @@ use cosmwasm_std::{
     StakingMsg, Uint128, WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
+
 use lst_common::{
-    calculate_delegations, errors::HubError, msg::ValidatorResponse, types::LstResult,
+    calculate_delegations,
+    errors::HubError,
+    types::LstResult,
+    validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, ValidatorError,
 };
 
 use crate::{
     contract::{check_slashing, query_total_lst_token_issued},
     math::decimal_division,
-    msg::QueryValidators,
     state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
 };
 
@@ -84,7 +87,7 @@ pub fn execute_stake(
     let validators: Vec<ValidatorResponse> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: validators_registry_contract.to_string(),
-            msg: to_json_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+            msg: to_json_binary(&ValidatorsDelegation {})?,
         }))?;
 
     if validators.is_empty() {

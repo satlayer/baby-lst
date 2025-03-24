@@ -8,15 +8,19 @@ use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
 use lst_common::errors::HubError;
-use lst_common::hub::{Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg};
+use lst_common::hub::{
+    Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+};
 use lst_common::types::LstResult;
 use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::stake::execute_stake;
-use crate::state::{
-    CurrentBatch, StakeType, State, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, TOTAL_STAKED,
+use crate::query::{
+    query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
+    query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
+use crate::stake::execute_stake;
+use crate::state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
@@ -124,20 +128,25 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
-        QueryMsg::Config {} => {
-            let config = CONFIG.load(deps.storage)?;
-            Ok(to_json_binary(&config)?)
-        }
-        QueryMsg::TotalStaked {} => {
-            let total = TOTAL_STAKED.load(deps.storage)?;
-            Ok(to_json_binary(&total)?)
-        }
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::ExchangeRate {} => {
-            todo!()
+            let state = query_state(deps, env)?;
+            Ok(to_json_binary(&state.lst_exchange_rate)?)
         }
-        QueryMsg::Parameters {} => todo!(),
+        QueryMsg::Parameters {} => Ok(to_json_binary(&query_parameters(deps)?)?),
+        QueryMsg::State {} => Ok(to_json_binary(&query_state(deps, env)?)?),
+        QueryMsg::CurrentBatch {} => Ok(to_json_binary(&query_current_batch(deps)?)?),
+        QueryMsg::WithdrawableUnstaked { address } => Ok(to_json_binary(
+            &query_withdrawable_unstaked(deps, env, address)?,
+        )?),
+        QueryMsg::UnstakeRequests { address } => {
+            Ok(to_json_binary(&query_unstake_requests(deps, address)?)?)
+        }
+        QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
+            &query_unstake_requests_limitation(deps, start_from, limit)?,
+        )?),
     }
 }
 
@@ -173,7 +182,7 @@ pub(crate) fn query_total_lst_token_issued(deps: Deps) -> LstResult<Uint128> {
     Ok(token_info.total_supply)
 }
 
-fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
+pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
     let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
