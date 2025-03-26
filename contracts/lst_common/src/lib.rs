@@ -17,6 +17,9 @@ pub use crate::{
     msg::MigrateMsg,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub fn to_checked_address(deps: Deps, address: &str) -> LstResult<Addr> {
     #[cfg(test)]
     return Ok(Addr::unchecked(address));
