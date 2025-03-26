@@ -15,3 +15,8 @@ thiserror.workspace = true
 schemars.workspace = true
 serde.workspace = true
 cw20.workspace = true
+
+[dev-dependencies]
+cw-multi-test.workspace = true
+lst_staking_hub = { path = "../lst_staking_hub" }
+lst_reward_dispatcher = { path = "../lst_reward_dispatcher" }
