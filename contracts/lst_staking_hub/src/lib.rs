@@ -7,4 +7,7 @@ pub mod stake;
 mod state;
 pub mod unstake;
 
+#[cfg(test)]
+mod testing;
+
 pub use contract::{execute, instantiate, query};

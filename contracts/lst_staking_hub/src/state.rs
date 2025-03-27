@@ -9,13 +9,13 @@ use lst_common::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
-pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
-pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
-pub const STATE: Item<State> = Item::new(STATE_KEY);
+pub(crate) const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
+pub(crate) const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
+pub(crate) const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
+pub(crate) const STATE: Item<State> = Item::new(STATE_KEY);
 
-pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
-pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
+pub(crate) const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
+pub(crate) const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 
 #[derive(PartialEq)]
 pub enum StakeType {
