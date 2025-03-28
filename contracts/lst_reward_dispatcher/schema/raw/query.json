@@ -3,6 +3,7 @@
   "title": "QueryMsg",
   "oneOf": [
     {
+      "description": "Returns the config values of the contract",
       "type": "object",
       "required": [
         "config"

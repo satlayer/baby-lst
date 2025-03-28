@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
+  "description": "Instantiate the reward contract",
   "type": "object",
   "required": [
     "hub_contract",
@@ -10,16 +11,24 @@
   ],
   "properties": {
     "hub_contract": {
+      "description": "Address of the staking hub contract",
       "type": "string"
     },
     "reward_denom": {
+      "description": "Denom of the staking reward token",
       "type": "string"
     },
     "satlayer_fee_addr": {
+      "description": "Address to receive the fee from the rewards",
       "type": "string"
     },
     "satlayer_fee_rate": {
-      "$ref": "#/definitions/Decimal"
+      "description": "Rate at which fee is taken from rewards",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
     }
   },
   "additionalProperties": false,

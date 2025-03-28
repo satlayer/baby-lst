@@ -13,14 +13,17 @@
     ],
     "properties": {
       "epoch_length": {
+        "description": "Time to batch the unstake request in the staking hub",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
       },
       "staking_coin_denom": {
+        "description": "Denom to use for staking",
         "type": "string"
       },
       "unstaking_period": {
+        "description": "Unstaking period of the network",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
@@ -33,6 +36,7 @@
     "title": "ExecuteMsg",
     "oneOf": [
       {
+        "description": "This hook is called to unstake from the token contract. To unstake tokens, user can simply transfer the tokens to staking hub contract.",
         "type": "object",
         "required": [
           "receive"
@@ -45,6 +49,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Stake the amount sent in the funds. Only staking denom fund is accepted.",
         "type": "object",
         "required": [
           "stake"
@@ -79,6 +84,7 @@
         "additionalProperties": false
       },
       {
+        "description": "User can withdraw the amount after the unstaking process has been completed.",
         "type": "object",
         "required": [
           "withdraw_unstaked"
@@ -92,6 +98,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Admin can update these parameters for configuration of the contract.",
         "type": "object",
         "required": [
           "update_config"
@@ -101,24 +108,28 @@
             "type": "object",
             "properties": {
               "lst_token": {
+                "description": "lst token address",
                 "type": [
                   "string",
                   "null"
                 ]
               },
               "owner": {
+                "description": "Owner of the contract",
                 "type": [
                   "string",
                   "null"
                 ]
               },
               "reward_dispatcher": {
+                "description": "reward dispatcher address",
                 "type": [
                   "string",
                   "null"
                 ]
               },
               "validator_registry": {
+                "description": "validator registry address",
                 "type": [
                   "string",
                   "null"
@@ -131,6 +142,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Admin can update these parameters from this method",
         "type": "object",
         "required": [
           "update_params"
@@ -140,6 +152,7 @@
             "type": "object",
             "properties": {
               "epoch_length": {
+                "description": "Epoch length of the unstaking batch",
                 "type": [
                   "integer",
                   "null"
@@ -148,12 +161,14 @@
                 "minimum": 0.0
               },
               "pause": {
+                "description": "Pause/Unpause the status of contract",
                 "type": [
                   "boolean",
                   "null"
                 ]
               },
               "unstaking_period": {
+                "description": "Amount of time the chain takes for unstaking",
                 "type": [
                   "integer",
                   "null"
@@ -168,6 +183,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Check if slashing has happened. If slashing has happened, the exchange rate is updated accordingly.",
         "type": "object",
         "required": [
           "check_slashing"
@@ -181,6 +197,7 @@
         "additionalProperties": false
       },
       {
+        "description": "This method is used to update the validators delegation from the validators registry contract. The change in validators set in registry contract is update by using this method.",
         "type": "object",
         "required": [
           "redelegate_proxy"
@@ -194,6 +211,7 @@
             ],
             "properties": {
               "redelegations": {
+                "description": "new delegation list",
                 "type": "array",
                 "items": {
                   "type": "array",
@@ -210,6 +228,7 @@
                 }
               },
               "src_validator": {
+                "description": "Validator address from which delegation has to be removed",
                 "type": "string"
               }
             },
@@ -219,6 +238,7 @@
         "additionalProperties": false
       },
       {
+        "description": "This method is used by rewards dispatcher contract to stake the rewards accrued from staking",
         "type": "object",
         "required": [
           "stake_rewards"
@@ -232,6 +252,7 @@
         "additionalProperties": false
       },
       {
+        "description": "This method is open to call to update the state of the contract like exchange rate, rewards.",
         "type": "object",
         "required": [
           "update_global_index"
@@ -298,6 +319,7 @@
     "title": "QueryMsg",
     "oneOf": [
       {
+        "description": "Returns the config values of the contract",
         "type": "object",
         "required": [
           "config"
@@ -311,6 +333,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Retursn the state variables in the contract",
         "type": "object",
         "required": [
           "state"
@@ -324,6 +347,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Returns the details of current unstaking batch",
         "type": "object",
         "required": [
           "current_batch"
@@ -337,6 +361,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Returns the parameters values",
         "type": "object",
         "required": [
           "parameters"
@@ -350,6 +375,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Returns the current exchange rate",
         "type": "object",
         "required": [
           "exchange_rate"
@@ -363,6 +389,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Returns the total amount a user can withdraw from his pending unstaked requests",
         "type": "object",
         "required": [
           "withdrawable_unstaked"
@@ -375,6 +402,7 @@
             ],
             "properties": {
               "address": {
+                "description": "Address of the user",
                 "type": "string"
               }
             },
@@ -384,6 +412,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Return all the unstaking requests for a user",
         "type": "object",
         "required": [
           "unstake_requests"
@@ -396,6 +425,7 @@
             ],
             "properties": {
               "address": {
+                "description": "Address of the user",
                 "type": "string"
               }
             },
@@ -405,6 +435,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Returns the unstaking requests history in batches",
         "type": "object",
         "required": [
           "all_history"
@@ -414,6 +445,7 @@
             "type": "object",
             "properties": {
               "limit": {
+                "description": "No of data to return per request",
                 "type": [
                   "integer",
                   "null"
@@ -422,6 +454,7 @@
                 "minimum": 0.0
               },
               "start_from": {
+                "description": "Starting index for the history",
                 "type": [
                   "integer",
                   "null"
@@ -449,6 +482,7 @@
       ],
       "properties": {
         "history": {
+          "description": "History of unstaking requests",
           "type": "array",
           "items": {
             "$ref": "#/definitions/UnstakeRequestsResponse"
@@ -469,9 +503,11 @@
           ],
           "properties": {
             "address": {
+              "description": "Address of the user",
               "type": "string"
             },
             "requests": {
+              "description": "Batch Id and Amount of token unstaked by the user",
               "type": "array",
               "items": {
                 "type": "array",
@@ -503,21 +539,25 @@
       ],
       "properties": {
         "lst_token": {
+          "description": "LST token address",
           "type": [
             "string",
             "null"
           ]
         },
         "owner": {
+          "description": "Owner of the contract",
           "type": "string"
         },
         "reward_dispatcher_contract": {
+          "description": "Reward dispatcher contract address",
           "type": [
             "string",
             "null"
           ]
         },
         "validators_registry_contract": {
+          "description": "Validator registry contract address",
           "type": [
             "string",
             "null"
@@ -536,12 +576,18 @@
       ],
       "properties": {
         "id": {
+          "description": "Batch id of the current unstaking batch",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
         },
         "requested_lst_token_amount": {
-          "$ref": "#/definitions/Uint128"
+          "description": "Total lst token amount requested in the batch",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -648,9 +694,11 @@
       ],
       "properties": {
         "address": {
+          "description": "Address of the user",
           "type": "string"
         },
         "requests": {
+          "description": "Batch Id and Amount of token unstaked by the user",
           "type": "array",
           "items": {
             "type": "array",
@@ -680,13 +728,19 @@
     "withdrawable_unstaked": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "WithdrawableUnstakedResponse",
+      "description": "Amount of unstaked tokens that can be withdrawn by user",
       "type": "object",
       "required": [
         "withdrawable"
       ],
       "properties": {
         "withdrawable": {
-          "$ref": "#/definitions/Uint128"
+          "description": "total amount",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
         }
       },
       "additionalProperties": false,

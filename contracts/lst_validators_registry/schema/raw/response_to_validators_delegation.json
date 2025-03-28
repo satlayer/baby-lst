@@ -17,9 +17,11 @@
       ],
       "properties": {
         "address": {
+          "description": "Address of the validator",
           "type": "string"
         },
         "total_delegated": {
+          "description": "Total delegated amount for the validator",
           "default": "0",
           "allOf": [
             {

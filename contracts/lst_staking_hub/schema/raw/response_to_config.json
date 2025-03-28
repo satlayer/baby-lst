@@ -7,21 +7,25 @@
   ],
   "properties": {
     "lst_token": {
+      "description": "LST token address",
       "type": [
         "string",
         "null"
       ]
     },
     "owner": {
+      "description": "Owner of the contract",
       "type": "string"
     },
     "reward_dispatcher_contract": {
+      "description": "Reward dispatcher contract address",
       "type": [
         "string",
         "null"
       ]
     },
     "validators_registry_contract": {
+      "description": "Validator registry contract address",
       "type": [
         "string",
         "null"

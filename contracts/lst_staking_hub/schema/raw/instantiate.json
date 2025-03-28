@@ -9,14 +9,17 @@
   ],
   "properties": {
     "epoch_length": {
+      "description": "Time to batch the unstake request in the staking hub",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "staking_coin_denom": {
+      "description": "Denom to use for staking",
       "type": "string"
     },
     "unstaking_period": {
+      "description": "Unstaking period of the network",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
