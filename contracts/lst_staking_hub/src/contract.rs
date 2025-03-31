@@ -20,7 +20,7 @@ use crate::query::{
     query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
-use crate::state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
+use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
@@ -95,9 +95,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Stake {} => execute_stake(deps, env, info, StakeType::LSTMint),
         ExecuteMsg::StakeRewards {} => execute_stake(deps, env, info, StakeType::StakeRewards),
-        ExecuteMsg::Unstake { amount } => {
-            execute_unstake(deps, env, amount, info.sender.to_string())
-        }
+        ExecuteMsg::Unstake { amount } => execute_unstake(
+            deps,
+            env,
+            amount,
+            info.sender.to_string(),
+            UnstakeType::BurnFromFlow,
+        ),
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
@@ -269,7 +273,13 @@ pub fn receive_cw20(
     match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::UnStake {} => {
             if info.sender == lst_token_addr {
-                execute_unstake(deps, env, cw20_msg.amount, info.sender.to_string())
+                execute_unstake(
+                    deps,
+                    env,
+                    cw20_msg.amount,
+                    info.sender.to_string(),
+                    UnstakeType::BurnFlow,
+                )
             } else {
                 Err(ContractError::Unauthorized {})
             }

@@ -2,6 +2,7 @@ use cosmwasm_std::{
     attr, coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
     MessageInfo, Response, StakingMsg, Storage, Uint128, Uint256, WasmMsg,
 };
+use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
@@ -14,7 +15,7 @@ use crate::{
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
         get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
-        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -23,6 +24,7 @@ pub(crate) fn execute_unstake(
     env: Env,
     amount: Uint128,
     sender: String,
+    flow: UnstakeType,
 ) -> LstResult<Response> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
@@ -48,7 +50,7 @@ pub(crate) fn execute_unstake(
     // if the epoch period is passed, the undelegate message would be sent
     if passed_time > epoch_period {
         let mut undelegate_msgs =
-            process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
+            process_undelegations(&mut deps, env.clone(), &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
@@ -62,7 +64,39 @@ pub(crate) fn execute_unstake(
     let config = CONFIG.load(deps.storage)?;
     let lst_token_addr = config.lst_token.ok_or(HubError::LstTokenNotSet)?;
 
-    let burn_msg = Cw20ExecuteMsg::Burn { amount };
+    let burn_msg = match flow {
+        UnstakeType::BurnFlow => Cw20ExecuteMsg::Burn { amount },
+        UnstakeType::BurnFromFlow => {
+            // check if user has sufficient balance
+            let balance_response: BalanceResponse = deps.querier.query_wasm_smart(
+                &lst_token_addr,
+                &Cw20QueryMsg::Balance {
+                    address: sender.clone(),
+                },
+            )?;
+            if balance_response.balance < amount {
+                return Err(ContractError::Hub(HubError::InvalidAmount));
+            }
+
+            //Query the allowance granted to the contract
+            let allowance_response: AllowanceResponse = deps.querier.query_wasm_smart(
+                &lst_token_addr,
+                &Cw20QueryMsg::Allowance {
+                    owner: sender.clone(),
+                    spender: env.contract.address.to_string(),
+                },
+            )?;
+            if allowance_response.allowance < amount {
+                return Err(ContractError::Hub(HubError::InvalidAmount));
+            }
+
+            Cw20ExecuteMsg::BurnFrom {
+                owner: sender.clone(),
+                amount: amount,
+            }
+        }
+    };
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: lst_token_addr.to_string(),
         msg: to_json_binary(&burn_msg)?,
