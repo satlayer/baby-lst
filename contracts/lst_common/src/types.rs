@@ -1,3 +1,4 @@
-use crate::ContractError;
+use crate::{epoching::CosmosProtoMsg, ContractError};
 
-pub type LstResult<T, E = ContractError> = Result<T, E>;
+pub type MessageType = CosmosProtoMsg;
+pub type LstResult<T = MessageType, E = ContractError> = Result<T, E>;

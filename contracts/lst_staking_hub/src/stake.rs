@@ -1,13 +1,15 @@
+use cosmos_sdk_proto::cosmos::{base::v1beta1::Coin, staking::v1beta1::MsgDelegate};
 use cosmwasm_std::{
-    attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StakingMsg, Uint128, WasmMsg, WasmQuery,
+    attr, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
     calculate_delegations,
+    epoching::CosmosProtoMsg,
     errors::HubError,
-    types::LstResult,
+    types::{LstResult, MessageType},
     validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, ValidatorError,
 };
@@ -23,7 +25,7 @@ pub fn execute_stake(
     env: Env,
     info: MessageInfo,
     stake_type: StakeType,
-) -> LstResult<Response> {
+) -> LstResult<Response<CosmosProtoMsg>> {
     let params = PARAMETERS.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
@@ -96,16 +98,37 @@ pub fn execute_stake(
 
     let delegations = calculate_delegations(payment.amount, validators.as_slice())?;
 
-    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
+    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg<MessageType>> = vec![];
     for i in 0..delegations.len() {
         if delegations[i].is_zero() {
             continue;
         }
+        // external_call_msgs.push(CosmosMsg::Custom(MsgWrappedDelegate {
+        //     msg: Some(MsgDelegate {
+        //         delegator_address: info.sender.to_string(),
+        //         validator_address: validators[i].address.clone(),
+        //         amount: Some(Coin {
+        //             denom: payment.denom,
+        //             amount: delegations[i].u128().to_string(),
+        //         }),
+        //     }),
+        // }));
 
-        external_call_msgs.push(CosmosMsg::Staking(StakingMsg::Delegate {
-            validator: validators[i].address.clone(),
-            amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
+        external_call_msgs.push(CosmosMsg::Custom(CosmosProtoMsg::MsgWrappedDelegate {
+            msg: Some(MsgDelegate {
+                delegator_address: info.sender.to_string(),
+                validator_address: validators[i].address.clone(),
+                amount: Some(Coin {
+                    denom: payment.denom.clone(),
+                    amount: delegations[i].u128().to_string(),
+                }),
+            }),
         }));
+
+        // external_call_msgs.push(CosmosMsg::Staking(StakingMsg::Delegate {
+        //     validator: validators[i].address.clone(),
+        //     amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
+        // }));
     }
 
     //Skip minting of lst token in case of staking rewards

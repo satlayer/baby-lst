@@ -38,7 +38,7 @@ source $REPO_PATH/scripts/helper.sh
 rustup target add wasm32-unknown-unknown
 cargo install cosmwasm-check@2.1.0 --locked
 
-RUSTFLAGS='-C target-feature=-sign-ext -C link-arg=-s -C target-cpu=mvp' cargo build --workspace --exclude lst_common --release --lib --target wasm32-unknown-unknown
+RUSTFLAGS='-C target-feature=-sign-ext -C link-arg=-s -C target-cpu=mvp' cargo build --workspace --exclude lst_common --exclude test_utils --release --lib --target wasm32-unknown-unknown
 
 for WASM in ./target/wasm32-unknown-unknown/release/*.wasm; do
   NAME=$(basename "$WASM" .wasm)${SUFFIX}.wasm

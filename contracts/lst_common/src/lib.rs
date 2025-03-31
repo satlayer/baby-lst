@@ -6,10 +6,10 @@ pub mod rewards_msg;
 mod signed_integer;
 pub mod types;
 pub mod validator;
-
 pub use crate::signed_integer::SignedInt;
 use cosmwasm_std::{Addr, CanonicalAddr, Deps};
 use types::LstResult;
+pub mod epoching;
 
 pub use crate::{
     delegation::calculate_delegations,
