@@ -15,7 +15,10 @@ use lst_common::{
     validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
 };
 
-use crate::state::{CONFIG, VALIDATOR_REGISTRY};
+use crate::{
+    helper::{VALIDATOR_ADDR_PREFIX, convert_addr_by_prefix, fetch_validator_info},
+    state::{CONFIG, VALIDATOR_REGISTRY},
+};
 
 const CONTRACT_NAME: &str = "crates.io:validator-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -36,15 +39,25 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: info.sender,
-            hub_contract: hub_contract,
+            hub_contract,
         },
     )?;
 
     msg.validators
         .into_iter()
-        .try_for_each(|val| -> LstResult<()> {
-            let checked_address = to_checked_address(deps.as_ref(), val.address.as_str())?;
-            VALIDATOR_REGISTRY.save(deps.storage, checked_address.as_bytes(), &val)?;
+        .try_for_each(|validator| -> LstResult<()> {
+            let validator_addr =
+                convert_addr_by_prefix(validator.address.as_str(), VALIDATOR_ADDR_PREFIX);
+            let validator_info = fetch_validator_info(&deps.querier, validator_addr)?;
+            if let Some(info) = validator_info {
+                VALIDATOR_REGISTRY.save(
+                    deps.storage,
+                    info.address.as_bytes(),
+                    &Validator {
+                        address: info.address.clone(),
+                    },
+                )?;
+            }
             Ok(())
         })?;
     Ok(Response::default())
