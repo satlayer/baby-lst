@@ -19,6 +19,36 @@ use crate::{
     },
 };
 
+fn check_for_undelegations(
+    deps: &mut DepsMut,
+    env: &Env,
+    current_batch: &mut CurrentBatch,
+    state: &mut State,
+) -> LstResult<Vec<CosmosMsg>> {
+    // read parameters
+    let params = PARAMETERS.load(deps.storage)?;
+    let epoch_period = params.epoch_length;
+
+    let current_time = env.block.time.seconds();
+    let passed_time = current_time - state.last_unbonded_time;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    // if the epoch period is passed, the undelegate message would be sent
+    if passed_time > epoch_period {
+        let mut undelegate_msgs = process_undelegations(deps, env.clone(), current_batch, state)?;
+        messages.append(&mut undelegate_msgs);
+    }
+
+    // Store the new requested id in the batch
+    CURRENT_BATCH.save(deps.storage, current_batch)?;
+
+    // Store state's new exchange rate
+    STATE.save(deps.storage, state)?;
+
+    Ok(messages)
+}
+
 pub(crate) fn execute_unstake(
     mut deps: DepsMut,
     env: Env,
@@ -26,10 +56,6 @@ pub(crate) fn execute_unstake(
     sender: String,
     flow: UnstakeType,
 ) -> LstResult<Response> {
-    // read parameters
-    let params = PARAMETERS.load(deps.storage)?;
-    let epoch_period = params.epoch_length;
-
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
@@ -42,23 +68,7 @@ pub(crate) fn execute_unstake(
     let checked_sender = to_checked_address(deps.as_ref(), &sender)?;
     store_unstake_wait_list(deps.storage, current_batch.id, checked_sender, amount)?;
 
-    let current_time = env.block.time.seconds();
-    let passed_time = current_time - state.last_unbonded_time;
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    // if the epoch period is passed, the undelegate message would be sent
-    if passed_time > epoch_period {
-        let mut undelegate_msgs =
-            process_undelegations(&mut deps, env.clone(), &mut current_batch, &mut state)?;
-        messages.append(&mut undelegate_msgs);
-    }
-
-    // Store the new requested id in the batch
-    CURRENT_BATCH.save(deps.storage, &current_batch)?;
-
-    // Store state's new exchange rate
-    STATE.save(deps.storage, &state)?;
+    let mut messages = check_for_undelegations(&mut deps, &env, &mut current_batch, &mut state)?;
 
     // send burn message to the token contract
     let config = CONFIG.load(deps.storage)?;
@@ -92,7 +102,7 @@ pub(crate) fn execute_unstake(
 
             Cw20ExecuteMsg::BurnFrom {
                 owner: sender.clone(),
-                amount: amount,
+                amount,
             }
         }
     };
@@ -109,6 +119,25 @@ pub(crate) fn execute_unstake(
         attr("burnt_amount", amount),
         attr("unstaked_amount", amount),
     ]);
+
+    Ok(res)
+}
+
+pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<Response> {
+    // load current batch
+    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
+
+    // check if slashing has occurred and update the exchange rate
+    let mut state = check_slashing(&mut deps, env.clone())?;
+
+    let messages = check_for_undelegations(&mut deps, &env, &mut current_batch, &mut state)?;
+
+    let res = Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr(
+            "process undelegations",
+            current_batch.id.to_string(),
+        )]);
 
     Ok(res)
 }

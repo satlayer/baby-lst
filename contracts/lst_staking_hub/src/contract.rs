@@ -21,7 +21,7 @@ use crate::query::{
 };
 use crate::stake::execute_stake;
 use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
+use crate::unstake::{execute_process_undelegations, execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
 
@@ -128,6 +128,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
         ExecuteMsg::UpdateGlobalIndex {} => execute_update_global_index(deps, env),
+        ExecuteMsg::ProcessUndelegations {} => execute_process_undelegations(deps, env),
     }
 }
 
