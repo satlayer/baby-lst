@@ -3,14 +3,16 @@ use cosmos_sdk_proto::{
     traits::MessageExt,
 };
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StdError, Uint128, WasmMsg,
-    WasmQuery,
+    attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin as CwStdCoin, CosmosMsg,
+    Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StdError,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
+use lst_common::types::{LstResult, ResponseType};
+use lst_common::ContractError;
 use lst_common::{
     babylon::epoching::v1::MsgWrappedBeginRedelegate,
     errors::HubError,
@@ -18,8 +20,6 @@ use lst_common::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
 };
-use lst_common::types::{LstResult, ResponseType};
-use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};
