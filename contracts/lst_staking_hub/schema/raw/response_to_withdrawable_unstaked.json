@@ -1,13 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "WithdrawableUnstakedResponse",
+  "description": "Amount of unstaked tokens that can be withdrawn by user",
   "type": "object",
   "required": [
     "withdrawable"
   ],
   "properties": {
     "withdrawable": {
-      "$ref": "#/definitions/Uint128"
+      "description": "total amount",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
     }
   },
   "additionalProperties": false,

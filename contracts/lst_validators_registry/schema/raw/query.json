@@ -3,6 +3,7 @@
   "title": "QueryMsg",
   "oneOf": [
     {
+      "description": "Return the delegation done by the hub contract in the network",
       "type": "object",
       "required": [
         "validators_delegation"
@@ -16,6 +17,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Return the configuration parameters of the contract",
       "type": "object",
       "required": [
         "config"

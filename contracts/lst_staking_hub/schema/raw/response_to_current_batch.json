@@ -8,12 +8,18 @@
   ],
   "properties": {
     "id": {
+      "description": "Batch id of the current unstaking batch",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "requested_lst_token_amount": {
-      "$ref": "#/definitions/Uint128"
+      "description": "Total lst token amount requested in the batch",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
     }
   },
   "additionalProperties": false,

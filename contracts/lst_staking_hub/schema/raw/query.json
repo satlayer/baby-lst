@@ -3,6 +3,7 @@
   "title": "QueryMsg",
   "oneOf": [
     {
+      "description": "Returns the config values of the contract",
       "type": "object",
       "required": [
         "config"
@@ -16,6 +17,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Retursn the state variables in the contract",
       "type": "object",
       "required": [
         "state"
@@ -29,6 +31,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns the details of current unstaking batch",
       "type": "object",
       "required": [
         "current_batch"
@@ -42,6 +45,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns the parameters values",
       "type": "object",
       "required": [
         "parameters"
@@ -55,6 +59,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns the current exchange rate",
       "type": "object",
       "required": [
         "exchange_rate"
@@ -68,6 +73,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns the total amount a user can withdraw from his pending unstaked requests",
       "type": "object",
       "required": [
         "withdrawable_unstaked"
@@ -80,6 +86,7 @@
           ],
           "properties": {
             "address": {
+              "description": "Address of the user",
               "type": "string"
             }
           },
@@ -89,6 +96,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Return all the unstaking requests for a user",
       "type": "object",
       "required": [
         "unstake_requests"
@@ -101,6 +109,7 @@
           ],
           "properties": {
             "address": {
+              "description": "Address of the user",
               "type": "string"
             }
           },
@@ -110,6 +119,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns the unstaking requests history in batches",
       "type": "object",
       "required": [
         "all_history"
@@ -119,6 +129,7 @@
           "type": "object",
           "properties": {
             "limit": {
+              "description": "No of data to return per request",
               "type": [
                 "integer",
                 "null"
@@ -127,6 +138,7 @@
               "minimum": 0.0
             },
             "start_from": {
+              "description": "Starting index for the history",
               "type": [
                 "integer",
                 "null"
