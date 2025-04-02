@@ -22,6 +22,7 @@ use lst_common::{
 };
 
 use crate::config::{execute_update_config, execute_update_params};
+use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};
 use crate::query::{
     query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
     query_unstake_requests_limitation, query_withdrawable_unstaked,
@@ -43,6 +44,21 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> LstResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    // Validate epoch length
+    if msg.epoch_length > MAX_EPOCH_LENGTH {
+        return Err(ContractError::Hub(HubError::InvalidEpochLength));
+    }
+
+    // Validate unstaking period
+    if msg.unstaking_period > MAX_UNSTAKING_PERIOD {
+        return Err(ContractError::Hub(HubError::InvalidUnstakingPeriod));
+    }
+
+    // Validate epoch length is less than unstaking period
+    if msg.epoch_length >= msg.unstaking_period {
+        return Err(ContractError::Hub(HubError::InvalidPeriods));
+    }
 
     let data = Config {
         owner: info.sender,
