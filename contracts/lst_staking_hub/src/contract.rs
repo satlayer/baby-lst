@@ -278,7 +278,7 @@ pub fn receive_cw20(
     match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::UnStake {} => {
             if info.sender == lst_token_addr {
-                execute_unstake(deps, env, cw20_msg.amount, info.sender.to_string())
+                execute_unstake(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(ContractError::Unauthorized {})
             }
