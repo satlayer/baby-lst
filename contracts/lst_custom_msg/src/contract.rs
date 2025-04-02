@@ -43,28 +43,12 @@ pub mod execute {
     use lst_common::babylon::epoching::v1::MsgWrappedDelegate;
 
     use super::*;
-    // pub fn delegate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    //     let amount = cosmos_sdk_proto::cosmos::base::v1beta1::Coin {
-    //         denom: info.funds[0].denom.clone(),
-    //         amount: info.funds[0].amount.to_string(),
-    //     };
-    //     let delegate_msg = cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate {
-    //         delegator_address: info.sender.to_string(),
-    //         validator_address: "bbnvaloper109x4ruspxarwt62puwcenhclw36l9v7j92f0ex".to_string(),
-    //         amount: Some(amount),
-    //     };
-    //     let msg = MsgWrappedDelegate {
-    //         msg: Some(delegate_msg),
-    //     };
 
-    //     Ok(Response::new()
-    //         .add_attribute("action", "delegate")
-    //         .add_attribute("amount", "100")
-    //         .add_attribute("delegator_address", info.sender.to_string())
-    //         .add_message(msg))
-    // }
-
-    pub fn delegate(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
+    pub fn delegate(
+        _deps: DepsMut,
+        info: MessageInfo,
+        env: Env,
+    ) -> Result<Response, ContractError> {
         let amount = cosmos_sdk_proto::cosmos::base::v1beta1::Coin {
             denom: info.funds[0].denom.clone(),
             amount: info.funds[0].amount.to_string(),
@@ -87,7 +71,7 @@ pub mod execute {
         Ok(Response::new()
             .add_attribute("action", "delegate")
             .add_attribute("amount", info.funds[0].amount.to_string())
-            .add_attribute("delegator_address", info.sender.to_string())
+            .add_attribute("delegator_address", env.contract.address.to_string())
             .add_message(msg))
     }
 }
