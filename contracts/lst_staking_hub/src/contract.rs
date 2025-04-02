@@ -1,24 +1,20 @@
-use cosmos_sdk_proto::{
-    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgBeginRedelegate,
-    traits::MessageExt,
-};
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate;
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StdError, Uint128, WasmMsg,
-    WasmQuery,
+    attr, entry_point, from_json, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, QueryRequest, Response, Uint128, WasmMsg, WasmQuery,
 };
 
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
+use lst_common::types::{LstResult, ProtoCoin, ResponseType, StdCoin};
+use lst_common::ContractError;
 use lst_common::{
-    babylon::epoching::v1::MsgWrappedBeginRedelegate,
+    babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate},
     errors::HubError,
     hub::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
-    types::LstResult,
-    ContractError,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
@@ -42,7 +38,7 @@ pub fn instantiate(
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Validate epoch length
@@ -99,7 +95,12 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> LstResult<Response<ResponseType>> {
     if let ExecuteMsg::UpdateParams {
         pause,
         epoch_length,
@@ -160,11 +161,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::ExchangeRate {} => {
-            let state = query_state(deps, env)?;
+            let state = query_state(deps, &env)?;
             Ok(to_json_binary(&state.lst_exchange_rate)?)
         }
         QueryMsg::Parameters {} => Ok(to_json_binary(&query_parameters(deps)?)?),
-        QueryMsg::State {} => Ok(to_json_binary(&query_state(deps, env)?)?),
+        QueryMsg::State {} => Ok(to_json_binary(&query_state(deps, &env)?)?),
         QueryMsg::CurrentBatch {} => Ok(to_json_binary(&query_current_batch(deps)?)?),
         QueryMsg::WithdrawableUnstaked { address } => Ok(to_json_binary(
             &query_withdrawable_unstaked(deps, env, address)?,
@@ -179,9 +180,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
 }
 
 // Handler for tracking slashing
-pub fn execute_slashing(mut deps: DepsMut, env: Env) -> LstResult<Response> {
+pub fn execute_slashing(mut deps: DepsMut, env: Env) -> LstResult<Response<ResponseType>> {
     // call slashing
-    let state = check_slashing(&mut deps, env)?;
+    let state = check_slashing(&mut deps, &env)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
         attr("new_lst_exchange_rate", state.lst_exchange_rate.to_string()),
@@ -189,7 +190,7 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> LstResult<Response> {
 }
 
 // Check if slashing has happened and return the slashed amount
-pub fn check_slashing(deps: &mut DepsMut, env: Env) -> LstResult<State> {
+pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> LstResult<State> {
     let state = query_actual_state(deps.as_ref(), env)?;
 
     STATE.save(deps.storage, &state)?;
@@ -210,9 +211,11 @@ pub(crate) fn query_total_lst_token_issued(deps: Deps) -> LstResult<Uint128> {
     Ok(token_info.total_supply)
 }
 
-pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
+pub fn query_actual_state(deps: Deps, env: &Env) -> LstResult<State> {
     let mut state = STATE.load(deps.storage)?;
-    let delegations = deps.querier.query_all_delegations(env.contract.address)?;
+    let delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     if delegations.is_empty() {
         return Ok(state);
     }
@@ -254,8 +257,8 @@ pub fn execute_redelegate_proxy(
     env: Env,
     info: MessageInfo,
     src_validator: String,
-    redelegations: Vec<(String, Coin)>,
-) -> LstResult<Response> {
+    redelegations: Vec<(String, StdCoin)>,
+) -> LstResult<Response<ResponseType>> {
     let sender = info.sender;
     let config = CONFIG.load(deps.storage)?;
     let validator_registry_addr = config
@@ -266,7 +269,7 @@ pub fn execute_redelegate_proxy(
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<CosmosMsg> = redelegations
+    let messages: Vec<CosmosMsg<ResponseType>> = redelegations
         .into_iter()
         .map(|(dst_validator, amount)| {
             prepare_wrapped_begin_redelegate_msg(
@@ -277,7 +280,7 @@ pub fn execute_redelegate_proxy(
                 dst_validator,
             )
         })
-        .collect::<LstResult<Vec<_>>>()?;
+        .collect();
 
     let res = Response::new().add_messages(messages);
     Ok(res)
@@ -313,8 +316,8 @@ pub fn receive_cw20(
     }
 }
 
-pub fn execute_update_global_index(deps: DepsMut, env: Env) -> LstResult<Response> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+pub fn execute_update_global_index(deps: DepsMut, env: Env) -> LstResult<Response<ResponseType>> {
+    let mut messages: Vec<CosmosMsg<ResponseType>> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
     let reward_address = &config
@@ -343,14 +346,17 @@ pub fn execute_update_global_index(deps: DepsMut, env: Env) -> LstResult<Respons
     Ok(res)
 }
 
-fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> LstResult<Vec<CosmosMsg>> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+fn withdraw_all_rewards(
+    deps: &DepsMut,
+    delegator: String,
+) -> LstResult<Vec<CosmosMsg<ResponseType>>> {
+    let mut messages: Vec<CosmosMsg<ResponseType>> = vec![];
 
     let delegations = deps.querier.query_all_delegations(delegator)?;
 
     if !delegations.is_empty() {
         for delegation in delegations {
-            let msg: CosmosMsg =
+            let msg: CosmosMsg<ResponseType> =
                 CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
                     validator: delegation.validator,
                 });
@@ -367,26 +373,16 @@ fn prepare_wrapped_begin_redelegate_msg(
     delegator_address: String,
     validator_src_address: String,
     validator_dst_address: String,
-) -> LstResult<CosmosMsg> {
-    let coin = ProtoCoin { denom, amount };
-
+) -> CosmosMsg {
     let redelegate_msg = MsgBeginRedelegate {
         delegator_address,
         validator_src_address,
         validator_dst_address,
-        amount: Some(coin),
+        amount: Some(ProtoCoin { denom, amount }),
     };
 
-    let bytes = MsgWrappedBeginRedelegate {
+    MsgWrappedBeginRedelegate {
         msg: Some(redelegate_msg),
     }
-    .to_bytes()
-    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedBeginRedelegate"))?;
-
-    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
-        type_url: "/babylon.epoching.v1.MsgWrappedBeginRedelegate".to_string(),
-        value: Binary::from(bytes),
-    });
-
-    return Ok(msg);
+    .to_any()
 }
