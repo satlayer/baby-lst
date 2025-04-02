@@ -763,25 +763,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lst_custom_msg"
-version = "0.0.1"
-dependencies = [
- "cosmos-sdk-proto",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
- "lst_common",
- "prost",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "lst_reward_dispatcher"
 version = "0.0.1"
 dependencies = [
