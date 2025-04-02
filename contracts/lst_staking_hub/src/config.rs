@@ -3,12 +3,14 @@ use cosmwasm_std::{
 };
 
 use lst_common::{
+    errors::HubError,
     hub::{Config, Parameters},
     to_checked_address,
     types::{LstResult, ResponseType},
     ContractError,
 };
 
+use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};
 use crate::state::{CONFIG, PARAMETERS};
 
 pub fn execute_update_config(
@@ -87,23 +89,52 @@ pub fn execute_update_params(
 ) -> LstResult<Response<ResponseType>> {
     is_authorized_sender(deps.as_ref(), info.sender)?;
 
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
 
-    let new_params = Parameters {
-        paused: pause.unwrap_or(params.paused),
-        staking_coin_denom: params.staking_coin_denom,
-        epoch_length: epoch_length.unwrap_or(params.epoch_length),
-        unstaking_period: unstaking_period.unwrap_or(params.unstaking_period),
-    };
+    // Validate periods if either is provided
+    if let (Some(epoch_len), Some(unstake_period)) = (epoch_length, unstaking_period) {
+        if epoch_len > MAX_EPOCH_LENGTH {
+            return Err(ContractError::Hub(HubError::InvalidEpochLength));
+        }
+        if unstake_period > MAX_UNSTAKING_PERIOD {
+            return Err(ContractError::Hub(HubError::InvalidUnstakingPeriod));
+        }
+        if epoch_len >= unstake_period {
+            return Err(ContractError::Hub(HubError::InvalidPeriods));
+        }
+    } else {
+        // Validate individual parameters
+        if let Some(epoch_len) = epoch_length {
+            if epoch_len > MAX_EPOCH_LENGTH {
+                return Err(ContractError::Hub(HubError::InvalidEpochLength));
+            }
+            if epoch_len >= params.unstaking_period {
+                return Err(ContractError::Hub(HubError::InvalidPeriods));
+            }
+        }
+        if let Some(unstake_period) = unstaking_period {
+            if unstake_period > MAX_UNSTAKING_PERIOD {
+                return Err(ContractError::Hub(HubError::InvalidUnstakingPeriod));
+            }
+            if params.epoch_length >= unstake_period {
+                return Err(ContractError::Hub(HubError::InvalidPeriods));
+            }
+        }
+    }
 
-    PARAMETERS.save(deps.storage, &new_params)?;
+    // Update parameters
+    params.paused = pause.unwrap_or(params.paused);
+    params.epoch_length = epoch_length.unwrap_or(params.epoch_length);
+    params.unstaking_period = unstaking_period.unwrap_or(params.unstaking_period);
+
+    PARAMETERS.save(deps.storage, &params)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "update_params"),
-        attr("paused", new_params.paused.to_string()),
-        attr("staking_coin_denom", new_params.staking_coin_denom.clone()),
-        attr("epoch_length", new_params.epoch_length.to_string()),
-        attr("unstaking_period", new_params.unstaking_period.to_string()),
+        attr("paused", params.paused.to_string()),
+        attr("staking_coin_denom", params.staking_coin_denom.clone()),
+        attr("epoch_length", params.epoch_length.to_string()),
+        attr("unstaking_period", params.unstaking_period.to_string()),
     ]))
 }
 

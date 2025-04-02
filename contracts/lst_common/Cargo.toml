@@ -15,7 +15,5 @@ thiserror.workspace = true
 schemars.workspace = true
 serde.workspace = true
 cw20.workspace = true
-
-cosmos-sdk-proto.workspace = true
-
-prost = { version = "0.13.3", default-features = false }
+cosmos-sdk-proto = { workspace = true }
+prost = { workspace = true, default-features = false }

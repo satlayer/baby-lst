@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "lst_token"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -809,6 +809,7 @@ dependencies = [
 name = "lst_validators_registry"
 version = "0.0.1"
 dependencies = [
+ "bech32",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -1223,19 +1224,6 @@ dependencies = [
  "serde_bytes",
  "subtle-encoding",
  "time",
-]
-
-[[package]]
-name = "test_utils"
-version = "0.0.1"
-dependencies = [
- "cosmwasm-std",
- "cw-multi-test",
- "lst_common",
- "lst_reward_dispatcher",
- "lst_staking_hub",
- "lst_validators_registry",
- "serde",
 ]
 
 [[package]]

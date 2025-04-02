@@ -7,6 +7,8 @@ default-members = [
   "contracts/lst_token",
 ]
 
+resolver = "2"
+
 [workspace.package]
 authors = ["Satlayer"]
 repository = "https://github.com/satlayer/satlayer-lst"
@@ -26,7 +28,7 @@ overflow-checks = true
 
 [workspace.dependencies]
 cosmwasm-schema = "2.2.0"
-cosmwasm-std = { version = "2.2.0", features = ["cosmwasm_2_0", "stargate"] }
+cosmwasm-std = { version = "2.2.0", features = ["cosmwasm_2_0"] }
 cw-storage-plus = "2.0.0"
 cw2 = "2.0.0"
 schemars = "0.8.16"
@@ -35,6 +37,7 @@ thiserror = { version = "1.0.58" }
 cw-multi-test = "2.0.0"
 cw20-base = "2.0.0"
 cw20 = "2.0.0"
-cosmos-sdk-proto = { version = "0.27", default-features = false, features = [
+cosmos-sdk-proto = { version = "0.27.0", default-features = false, features = [
   "cosmwasm",
 ] }
+prost = "0.13.5"

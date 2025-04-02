@@ -7,6 +7,7 @@
   ],
   "properties": {
     "history": {
+      "description": "History of unstaking requests",
       "type": "array",
       "items": {
         "$ref": "#/definitions/UnstakeRequestsResponse"
@@ -27,9 +28,11 @@
       ],
       "properties": {
         "address": {
+          "description": "Address of the user",
           "type": "string"
         },
         "requests": {
+          "description": "Batch Id and Amount of token unstaked by the user",
           "type": "array",
           "items": {
             "type": "array",

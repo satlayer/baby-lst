@@ -3,6 +3,7 @@
   "title": "ExecuteMsg",
   "oneOf": [
     {
+      "description": "Update the config by admin",
       "type": "object",
       "required": [
         "update_config"
@@ -12,24 +13,28 @@
           "type": "object",
           "properties": {
             "hub_contract": {
+              "description": "Address of the hub contract",
               "type": [
                 "string",
                 "null"
               ]
             },
             "owner": {
+              "description": "Owner of the contract",
               "type": [
                 "string",
                 "null"
               ]
             },
             "satlayer_fee_addr": {
+              "description": "Address to receive the fee from the rewards",
               "type": [
                 "string",
                 "null"
               ]
             },
             "satlayer_fee_rate": {
+              "description": "Rate at which fee is taken from rewards",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Decimal"
@@ -46,6 +51,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Dispatch the rewards to the staking hub contract and stake those rewards",
       "type": "object",
       "required": [
         "dispatch_rewards"

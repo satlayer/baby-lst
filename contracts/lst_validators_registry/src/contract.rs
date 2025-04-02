@@ -1,21 +1,25 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
-    entry_point, to_json_binary,
+    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 
 use lst_common::{
-    ContractError, MigrateMsg, calculate_delegations,
+    calculate_delegations,
     errors::ValidatorError,
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
     types::LstResult,
     validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
+    ContractError, MigrateMsg,
 };
 
-use crate::state::{CONFIG, VALIDATOR_REGISTRY};
+use crate::{
+    helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
+    state::{CONFIG, VALIDATOR_REGISTRY},
+};
 
 const CONTRACT_NAME: &str = "crates.io:validator-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -36,17 +40,32 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: info.sender,
-            hub_contract: hub_contract,
+            hub_contract,
         },
     )?;
 
     msg.validators
         .into_iter()
-        .try_for_each(|val| -> LstResult<()> {
-            let checked_address = to_checked_address(deps.as_ref(), val.address.as_str())?;
-            VALIDATOR_REGISTRY.save(deps.storage, checked_address.as_bytes(), &val)?;
-            Ok(())
-        })?;
+        .filter_map(|validator| {
+            let validator_addr =
+                convert_addr_by_prefix(validator.address.as_str(), VALIDATOR_ADDR_PREFIX);
+            fetch_validator_info(&deps.querier, validator_addr)
+                .ok()
+                .flatten()
+                .map(|info| {
+                    VALIDATOR_REGISTRY
+                        .save(
+                            deps.storage,
+                            info.address.as_bytes(),
+                            &Validator {
+                                address: info.address.clone(),
+                            },
+                        )
+                        .ok()
+                })
+        })
+        .count();
+
     Ok(Response::default())
 }
 
@@ -82,8 +101,13 @@ fn add_validator(
     if !(info.sender == owner || info.sender == hub_contract) {
         return Err(ContractError::Unauthorized {});
     }
-    let val_checked_address = to_checked_address(deps.as_ref(), validator.address.as_str())?;
-    VALIDATOR_REGISTRY.save(deps.storage, val_checked_address.as_bytes(), &validator)?;
+
+    let validator_addr = convert_addr_by_prefix(validator.address.as_str(), VALIDATOR_ADDR_PREFIX);
+    let validator_info = fetch_validator_info(&deps.querier, validator_addr)?;
+    if let Some(info) = validator_info {
+        VALIDATOR_REGISTRY.save(deps.storage, info.address.as_bytes(), &validator)?;
+    }
+
     Ok(Response::default())
 }
 
@@ -102,7 +126,10 @@ fn remove_validator(
         return Err(ContractError::Unauthorized {});
     }
 
-    VALIDATOR_REGISTRY.remove(deps.storage, validator_addr.as_bytes());
+    let validator_operator_addr =
+        convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
+
+    VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
 
     let validators = query_validators(deps.as_ref())?;
 

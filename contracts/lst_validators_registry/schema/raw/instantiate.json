@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
+  "description": "Instantiate the validator registry contract",
   "type": "object",
   "required": [
     "hub_contract",
@@ -8,9 +9,11 @@
   ],
   "properties": {
     "hub_contract": {
+      "description": "Address of the hub contract",
       "type": "string"
     },
     "validators": {
+      "description": "Address of the validators to delegate",
       "type": "array",
       "items": {
         "$ref": "#/definitions/Validator"

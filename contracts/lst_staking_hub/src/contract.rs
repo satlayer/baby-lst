@@ -1,30 +1,35 @@
-use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkProtoCoin;
-use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate;
+use cosmos_sdk_proto::{
+    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgBeginRedelegate,
+    traits::MessageExt,
+};
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Binary, Coin as CwStdCoin, CosmosMsg, Decimal,
-    Deps, DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, Uint128, WasmMsg,
+    attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StdError, Uint128, WasmMsg,
     WasmQuery,
 };
 
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
-use lst_common::babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate};
-use lst_common::errors::HubError;
-use lst_common::hub::{
-    Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+use lst_common::{
+    babylon::epoching::v1::MsgWrappedBeginRedelegate,
+    errors::HubError,
+    hub::{
+        Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+    },
 };
 use lst_common::types::{LstResult, ResponseType};
 use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
+use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};
 use crate::query::{
     query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
     query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
-use crate::state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use crate::unstake::{execute_unstake, execute_withdraw_unstaked};
+use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
+use crate::unstake::{execute_process_undelegations, execute_unstake, execute_withdraw_unstaked};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
 
@@ -39,6 +44,21 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> LstResult<Response<ResponseType>> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    // Validate epoch length
+    if msg.epoch_length > MAX_EPOCH_LENGTH {
+        return Err(ContractError::Hub(HubError::InvalidEpochLength));
+    }
+
+    // Validate unstaking period
+    if msg.unstaking_period > MAX_UNSTAKING_PERIOD {
+        return Err(ContractError::Hub(HubError::InvalidUnstakingPeriod));
+    }
+
+    // Validate epoch length is less than unstaking period
+    if msg.epoch_length >= msg.unstaking_period {
+        return Err(ContractError::Hub(HubError::InvalidPeriods));
+    }
 
     let data = Config {
         owner: info.sender,
@@ -103,9 +123,13 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Stake {} => execute_stake(deps, env, info, StakeType::LSTMint),
         ExecuteMsg::StakeRewards {} => execute_stake(deps, env, info, StakeType::StakeRewards),
-        ExecuteMsg::Unstake { amount } => {
-            execute_unstake(deps, env, amount, info.sender.to_string())
-        }
+        ExecuteMsg::Unstake { amount } => execute_unstake(
+            deps,
+            env,
+            amount,
+            info.sender.to_string(),
+            UnstakeType::BurnFromFlow,
+        ),
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
@@ -132,6 +156,7 @@ pub fn execute(
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
         ExecuteMsg::UpdateGlobalIndex {} => execute_update_global_index(deps, env),
+        ExecuteMsg::ProcessUndelegations {} => execute_process_undelegations(deps, env),
     }
 }
 
@@ -251,20 +276,15 @@ pub fn execute_redelegate_proxy(
     let messages: Vec<CosmosMsg<ResponseType>> = redelegations
         .into_iter()
         .map(|(dst_validator, amount)| {
-            MsgWrappedBeginRedelegate {
-                msg: Some(MsgBeginRedelegate {
-                    delegator_address: env.contract.address.to_string(),
-                    validator_src_address: src_validator.clone(),
-                    validator_dst_address: dst_validator,
-                    amount: Some(SdkProtoCoin {
-                        amount: amount.amount.to_string(),
-                        denom: amount.denom,
-                    }),
-                }),
-            }
-            .to_any()
+            prepare_wrapped_begin_redelegate_msg(
+                amount.denom,
+                amount.amount.to_string(),
+                env.contract.address.to_string(),
+                src_validator.clone(),
+                dst_validator,
+            )
         })
-        .collect();
+        .collect::<LstResult<Vec<_>>>()?;
 
     let res = Response::new().add_messages(messages);
     Ok(res)
@@ -286,7 +306,13 @@ pub fn receive_cw20(
     match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::UnStake {} => {
             if info.sender == lst_token_addr {
-                execute_unstake(deps, env, cw20_msg.amount, info.sender.to_string())
+                execute_unstake(
+                    deps,
+                    env,
+                    cw20_msg.amount,
+                    cw20_msg.sender,
+                    UnstakeType::BurnFlow,
+                )
             } else {
                 Err(ContractError::Unauthorized {})
             }
@@ -343,4 +369,34 @@ fn withdraw_all_rewards(
     }
 
     Ok(messages)
+}
+
+fn prepare_wrapped_begin_redelegate_msg(
+    denom: String,
+    amount: String,
+    delegator_address: String,
+    validator_src_address: String,
+    validator_dst_address: String,
+) -> LstResult<CosmosMsg> {
+    let coin = ProtoCoin { denom, amount };
+
+    let redelegate_msg = MsgBeginRedelegate {
+        delegator_address,
+        validator_src_address,
+        validator_dst_address,
+        amount: Some(coin),
+    };
+
+    let bytes = MsgWrappedBeginRedelegate {
+        msg: Some(redelegate_msg),
+    }
+    .to_bytes()
+    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedBeginRedelegate"))?;
+
+    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
+        type_url: "/babylon.epoching.v1.MsgWrappedBeginRedelegate".to_string(),
+        value: Binary::from(bytes),
+    });
+
+    return Ok(msg);
 }

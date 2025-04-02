@@ -1,16 +1,16 @@
 use cosmwasm_std::{
-    Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg, attr, entry_point, to_json_binary,
+    attr, entry_point, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use lst_common::{
-    ContractError, MigrateMsg,
-    hub::{ExecuteMsg::StakeRewards, is_paused},
+    hub::{is_paused, ExecuteMsg::StakeRewards},
     to_checked_address,
     types::LstResult,
+    ContractError, MigrateMsg,
 };
 
-use crate::state::CONFIG;
+use crate::{state::CONFIG, MAX_FEE_RATE};
 use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 const CONTRACT_NAME: &str = "crates.io:reward-dispatcher";
@@ -32,6 +32,11 @@ pub fn instantiate(
         satlayer_fee_addr,
         satlayer_fee_rate,
     } = msg;
+
+    // Validate fee rate if provided
+    if satlayer_fee_rate > MAX_FEE_RATE {
+        return Err(ContractError::InvalidFeeRate {});
+    }
 
     let config = Config {
         owner: info.sender,
@@ -76,46 +81,32 @@ fn execute_update_config(
     satlayer_fee_addr: Option<String>,
     satlayer_fee_rate: Option<Decimal>,
 ) -> LstResult<Response> {
-    let config: Config = query_config(deps.as_ref())?;
+    is_authorized_sender(deps.as_ref(), info.sender)?;
 
-    if config.owner != info.sender {
-        return Err(ContractError::Unauthorized {});
+    // Validate fee rate if provided
+    if let Some(rate) = &satlayer_fee_rate {
+        if rate > &MAX_FEE_RATE {
+            return Err(ContractError::InvalidFeeRate {});
+        }
     }
 
+    let mut config: Config = query_config(deps.as_ref())?;
+
+    // Update config with all provided values in a single operation
     if let Some(o) = owner {
-        let owner_addr = to_checked_address(deps.as_ref(), &o)?;
-
-        CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
-            prev_config.owner = owner_addr;
-            Ok(prev_config)
-        })?;
+        config.owner = to_checked_address(deps.as_ref(), &o)?;
     }
-
     if let Some(h) = hub_contract {
-        let hub_addr = to_checked_address(deps.as_ref(), &h)?;
-
-        CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
-            prev_config.hub_contract = hub_addr;
-            Ok(prev_config)
-        })?;
+        config.hub_contract = to_checked_address(deps.as_ref(), &h)?;
     }
-
     if let Some(s) = satlayer_fee_addr {
-        let fee_addr = to_checked_address(deps.as_ref(), &s)?;
-
-        CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
-            prev_config.satlayer_fee_addr = fee_addr;
-            Ok(prev_config)
-        })?;
+        config.satlayer_fee_addr = to_checked_address(deps.as_ref(), &s)?;
     }
-
     if let Some(rate) = satlayer_fee_rate {
-        CONFIG.update(deps.storage, |mut prev_config| -> LstResult<_> {
-            prev_config.satlayer_fee_rate = rate;
-            Ok(prev_config)
-        })?;
+        config.satlayer_fee_rate = rate;
     }
 
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }
 
@@ -202,4 +193,12 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response
 
 fn compute_fee(amount: Uint128, fee_rate: Decimal) -> Uint128 {
     (Decimal::from_ratio(amount, 1u128) * fee_rate).to_uint_ceil()
+}
+
+fn is_authorized_sender(deps: Deps, sender: Addr) -> LstResult<()> {
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
+    if sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    Ok(())
 }
