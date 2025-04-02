@@ -3,9 +3,8 @@ use cosmos_sdk_proto::{
     traits::MessageExt,
 };
 use cosmwasm_std::{
-    attr, coin, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal,
-    Decimal256, DepsMut, Env, MessageInfo, Response, StakingMsg, StdError, Storage, Uint128,
-    Uint256, WasmMsg,
+    attr, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
+    DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 

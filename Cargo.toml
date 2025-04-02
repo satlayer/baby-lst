@@ -1,6 +1,8 @@
 [workspace]
 members = ["contracts/*"]
 
+resolver = "2"
+
 [workspace.package]
 authors = ["Satlayer"]
 repository = "https://github.com/satlayer/satlayer-lst"

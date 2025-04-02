@@ -4,8 +4,8 @@ use cosmos_sdk_proto::{
 };
 use cosmwasm_std::{
     attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError,
-    Uint128, WasmMsg, WasmQuery,
+    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StdError, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use cw2::set_contract_version;
