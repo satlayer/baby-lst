@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
-    entry_point, to_json_binary,
+    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 
 use lst_common::{
-    ContractError, MigrateMsg, calculate_delegations,
+    calculate_delegations,
     errors::ValidatorError,
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
     types::LstResult,
     validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
+    ContractError, MigrateMsg,
 };
 
 use crate::state::{CONFIG, VALIDATOR_REGISTRY};
