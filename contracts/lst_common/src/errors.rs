@@ -62,7 +62,7 @@ pub enum HubError {
     #[error("Invalid amount")]
     InvalidAmount,
 
-    #[error("Reward discpather contract not set")]
+    #[error("Reward dispatcher contract not set")]
     RewardDispatcherNotSet,
 
     #[error("Validator registry contract not set")]

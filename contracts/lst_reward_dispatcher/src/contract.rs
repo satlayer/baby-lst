@@ -1,13 +1,13 @@
 use cosmwasm_std::{
-    Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg, attr, entry_point, to_json_binary,
+    attr, entry_point, to_json_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use lst_common::{
-    ContractError, MigrateMsg,
-    hub::{ExecuteMsg::StakeRewards, is_paused},
+    hub::{is_paused, ExecuteMsg::StakeRewards},
     to_checked_address,
     types::LstResult,
+    ContractError, MigrateMsg,
 };
 
 use crate::state::CONFIG;
