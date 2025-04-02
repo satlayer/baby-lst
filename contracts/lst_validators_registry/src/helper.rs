@@ -12,7 +12,7 @@ pub(crate) fn fetch_validator_info(
 }
 
 pub(crate) fn convert_addr_by_prefix(address: &str, prefix: &str) -> String {
-    let (_hrp, data) = bech32::decode(address).expect("Invalid Bec32 account address");
+    let (_hrp, data) = bech32::decode(address).expect("Invalid Bech32 account address");
     let hrp = bech32::Hrp::parse(prefix).expect("Invalid prefix");
     bech32::encode::<Bech32>(hrp, &data).expect("Failed to encode address")
 }
