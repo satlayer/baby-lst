@@ -6,13 +6,3 @@ pub struct MsgWrappedDelegate {
     pub msg: ::core::option::Option<cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate>,
 }
 // @@protoc_insertion_point(module)
-
-// use cosmwasm_std::{CosmosMsg, CustomMsg};
-
-// impl From<MsgWrappedDelegate> for CosmosMsg<MsgWrappedDelegate> {
-//     fn from(msg: MsgWrappedDelegate) -> CosmosMsg<MsgWrappedDelegate> {
-//         CosmosMsg::Custom(msg)
-//     }
-// }
-
-// impl CustomMsg for MsgWrappedDelegate {}

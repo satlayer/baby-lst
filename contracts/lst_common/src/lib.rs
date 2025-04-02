@@ -6,7 +6,6 @@ pub mod rewards_msg;
 mod signed_integer;
 pub mod types;
 pub mod validator;
-pub mod binding;
 
 pub mod babylon {
     pub mod epoching {
