@@ -46,21 +46,26 @@ pub fn instantiate(
 
     msg.validators
         .into_iter()
-        .try_for_each(|validator| -> LstResult<()> {
+        .filter_map(|validator| {
             let validator_addr =
                 convert_addr_by_prefix(validator.address.as_str(), VALIDATOR_ADDR_PREFIX);
-            let validator_info = fetch_validator_info(&deps.querier, validator_addr)?;
-            if let Some(info) = validator_info {
-                VALIDATOR_REGISTRY.save(
-                    deps.storage,
-                    info.address.as_bytes(),
-                    &Validator {
-                        address: info.address.clone(),
-                    },
-                )?;
-            }
-            Ok(())
-        })?;
+            fetch_validator_info(&deps.querier, validator_addr)
+                .ok()
+                .flatten()
+                .map(|info| {
+                    VALIDATOR_REGISTRY
+                        .save(
+                            deps.storage,
+                            info.address.as_bytes(),
+                            &Validator {
+                                address: info.address.clone(),
+                            },
+                        )
+                        .ok()
+                })
+        })
+        .count();
+
     Ok(Response::default())
 }
 
