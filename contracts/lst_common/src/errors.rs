@@ -82,4 +82,13 @@ pub enum HubError {
 
     #[error("No withdrawable assets are available yet")]
     NoWithdrawableAssets,
+
+    #[error("Epoch length exceeds maximum allowed value")]
+    InvalidEpochLength,
+
+    #[error("Unstaking period exceeds maximum allowed value")]
+    InvalidUnstakingPeriod,
+
+    #[error("Epoch length must be less than unstaking period")]
+    InvalidPeriods,
 }
