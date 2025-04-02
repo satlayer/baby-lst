@@ -134,6 +134,8 @@ pub enum ExecuteMsg {
 
     /// This method is open to call to update the state of the contract like exchange rate, rewards.
     UpdateGlobalIndex {},
+
+    ProcessUndelegations {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]

@@ -32,6 +32,9 @@ pub enum ContractError {
 
     #[error(transparent)]
     Hub(#[from] HubError),
+
+    #[error("Fee rate must be less than 30%")]
+    InvalidFeeRate {},
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -62,7 +65,7 @@ pub enum HubError {
     #[error("Invalid amount")]
     InvalidAmount,
 
-    #[error("Reward discpather contract not set")]
+    #[error("Reward dispatcher contract not set")]
     RewardDispatcherNotSet,
 
     #[error("Validator registry contract not set")]

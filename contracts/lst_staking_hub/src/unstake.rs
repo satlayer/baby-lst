@@ -1,12 +1,18 @@
-use cosmwasm_std::{
-    attr, coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
-    MessageInfo, Response, StakingMsg, Storage, Uint128, Uint256, WasmMsg,
+use cosmos_sdk_proto::{
+    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgUndelegate,
+    traits::MessageExt,
 };
+use cosmwasm_std::{
+    attr, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
+    DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
+};
+use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    delegation::calculate_undelegations, errors::HubError, hub::CurrentBatch, hub::State,
-    to_checked_address, types::LstResult, validator::ValidatorResponse, ContractError, SignedInt,
+    babylon::epoching::v1::MsgWrappedUndelegate, delegation::calculate_undelegations,
+    errors::HubError, hub::CurrentBatch, hub::State, to_checked_address, types::LstResult,
+    validator::ValidatorResponse, ContractError, SignedInt,
 };
 
 use crate::{
@@ -14,31 +20,21 @@ use crate::{
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
         get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
-        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
-pub(crate) fn execute_unstake(
-    mut deps: DepsMut,
-    env: Env,
-    amount: Uint128,
-    sender: String,
-) -> LstResult<Response> {
+fn check_for_undelegations(
+    deps: &mut DepsMut,
+    env: &Env,
+    current_batch: &mut CurrentBatch,
+) -> LstResult<Vec<CosmosMsg>> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
 
-    // load current batch
-    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
-
     // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(&mut deps, env.clone())?;
-
-    // add the unstaking amount to the current batch
-    current_batch.requested_lst_token_amount += amount;
-
-    let checked_sender = to_checked_address(deps.as_ref(), &sender)?;
-    store_unstake_wait_list(deps.storage, current_batch.id, checked_sender, amount)?;
+    let mut state = check_slashing(deps, env.clone())?;
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -48,21 +44,74 @@ pub(crate) fn execute_unstake(
     // if the epoch period is passed, the undelegate message would be sent
     if passed_time > epoch_period {
         let mut undelegate_msgs =
-            process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
+            process_undelegations(deps, env.clone(), current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
     // Store the new requested id in the batch
-    CURRENT_BATCH.save(deps.storage, &current_batch)?;
+    CURRENT_BATCH.save(deps.storage, current_batch)?;
 
     // Store state's new exchange rate
     STATE.save(deps.storage, &state)?;
+
+    Ok(messages)
+}
+
+pub(crate) fn execute_unstake(
+    mut deps: DepsMut,
+    env: Env,
+    amount: Uint128,
+    sender: String,
+    flow: UnstakeType,
+) -> LstResult<Response> {
+    // load current batch
+    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
+
+    // add the unstaking amount to the current batch
+    current_batch.requested_lst_token_amount += amount;
+
+    let checked_sender = to_checked_address(deps.as_ref(), &sender)?;
+    store_unstake_wait_list(deps.storage, current_batch.id, checked_sender, amount)?;
+
+    let mut messages = check_for_undelegations(&mut deps, &env, &mut current_batch)?;
 
     // send burn message to the token contract
     let config = CONFIG.load(deps.storage)?;
     let lst_token_addr = config.lst_token.ok_or(HubError::LstTokenNotSet)?;
 
-    let burn_msg = Cw20ExecuteMsg::Burn { amount };
+    let burn_msg = match flow {
+        UnstakeType::BurnFlow => Cw20ExecuteMsg::Burn { amount },
+        UnstakeType::BurnFromFlow => {
+            // check if user has sufficient balance
+            let balance_response: BalanceResponse = deps.querier.query_wasm_smart(
+                &lst_token_addr,
+                &Cw20QueryMsg::Balance {
+                    address: sender.clone(),
+                },
+            )?;
+            if balance_response.balance < amount {
+                return Err(ContractError::Hub(HubError::InvalidAmount));
+            }
+
+            //Query the allowance granted to the contract
+            let allowance_response: AllowanceResponse = deps.querier.query_wasm_smart(
+                &lst_token_addr,
+                &Cw20QueryMsg::Allowance {
+                    owner: sender.clone(),
+                    spender: env.contract.address.to_string(),
+                },
+            )?;
+            if allowance_response.allowance < amount {
+                return Err(ContractError::Hub(HubError::InvalidAmount));
+            }
+
+            Cw20ExecuteMsg::BurnFrom {
+                owner: sender.clone(),
+                amount,
+            }
+        }
+    };
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: lst_token_addr.to_string(),
         msg: to_json_binary(&burn_msg)?,
@@ -75,6 +124,22 @@ pub(crate) fn execute_unstake(
         attr("burnt_amount", amount),
         attr("unstaked_amount", amount),
     ]);
+
+    Ok(res)
+}
+
+pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<Response> {
+    // load current batch
+    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
+
+    let messages = check_for_undelegations(&mut deps, &env, &mut current_batch)?;
+
+    let res = Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr(
+            "process undelegations",
+            current_batch.id.to_string(),
+        )]);
 
     Ok(res)
 }
@@ -113,10 +178,9 @@ fn process_undelegations(
         current_batch.requested_lst_token_amount,
         state.lst_exchange_rate,
     );
-    let delegator = env.contract.address;
 
     // send undelegate requests to possibly more than one validators
-    let undelegate_msgs = pick_validator(deps, lst_undelegation_amount, delegator.to_string())?;
+    let undelegate_msgs = pick_validator(deps, env.clone(), lst_undelegation_amount)?;
 
     state.total_lst_token_amount = state
         .total_lst_token_amount
@@ -145,17 +209,14 @@ fn process_undelegations(
     Ok(undelegate_msgs)
 }
 
-fn pick_validator(
-    deps: &mut DepsMut,
-    claim: Uint128,
-    delegator: String,
-) -> LstResult<Vec<CosmosMsg>> {
+fn pick_validator(deps: &mut DepsMut, env: Env, claim: Uint128) -> LstResult<Vec<CosmosMsg>> {
     let params = PARAMETERS.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let all_delegations = deps.querier.query_all_delegations(&delegator)?;
+    let delegator_address = env.contract.address;
+    let all_delegations = deps.querier.query_all_delegations(&delegator_address)?;
 
     let mut validators = all_delegations
         .iter()
@@ -174,11 +235,14 @@ fn pick_validator(
             continue;
         }
 
-        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: validators[index].address.clone(),
-            amount: coin(undelegated_amount.u128(), &staking_coin_denom),
-        });
-        messages.push(msgs);
+        let msg = prepare_wrapped_undelegate_msg(
+            staking_coin_denom.clone(),
+            undelegated_amount.to_string(),
+            delegator_address.to_string(),
+            validators[index].address.to_string(),
+        )?;
+
+        messages.push(msg);
     }
 
     Ok(messages)
@@ -391,4 +455,32 @@ pub fn execute_withdraw_unstaked(
         attr("amount", withdraw_amount),
     ]);
     Ok(res)
+}
+
+fn prepare_wrapped_undelegate_msg(
+    denom: String,
+    amount: String,
+    delegator_address: String,
+    validator_address: String,
+) -> LstResult<CosmosMsg> {
+    let coin = ProtoCoin { denom, amount };
+
+    let undelegate_msg = MsgUndelegate {
+        delegator_address,
+        validator_address,
+        amount: Some(coin),
+    };
+
+    let bytes = MsgWrappedUndelegate {
+        msg: Some(undelegate_msg),
+    }
+    .to_bytes()
+    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedUndelegate"))?;
+
+    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
+        type_url: "/babylon.epoching.v1.MsgWrappedUndelegate".to_string(),
+        value: Binary::from(bytes),
+    });
+
+    return Ok(msg);
 }
