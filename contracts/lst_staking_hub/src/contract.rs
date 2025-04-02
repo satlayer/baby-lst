@@ -1,12 +1,15 @@
+use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkProtoCoin;
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate;
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, Uint128, WasmMsg,
+    attr, entry_point, from_json, to_json_binary, Binary, Coin as CwStdCoin, CosmosMsg, Decimal,
+    Deps, DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, Uint128, WasmMsg,
     WasmQuery,
 };
 
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
+use lst_common::babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate};
 use lst_common::errors::HubError;
 use lst_common::hub::{
     Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
@@ -230,10 +233,10 @@ pub fn query_actual_state(deps: Deps, env: &Env) -> LstResult<State> {
 
 pub fn execute_redelegate_proxy(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     src_validator: String,
-    redelegations: Vec<(String, Coin)>,
+    redelegations: Vec<(String, CwStdCoin)>,
 ) -> LstResult<Response<ResponseType>> {
     let sender = info.sender;
     let config = CONFIG.load(deps.storage)?;
@@ -248,11 +251,18 @@ pub fn execute_redelegate_proxy(
     let messages: Vec<CosmosMsg<ResponseType>> = redelegations
         .into_iter()
         .map(|(dst_validator, amount)| {
-            cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
-                src_validator: src_validator.clone(),
-                dst_validator,
-                amount,
-            })
+            MsgWrappedBeginRedelegate {
+                msg: Some(MsgBeginRedelegate {
+                    delegator_address: env.contract.address.to_string(),
+                    validator_src_address: src_validator.clone(),
+                    validator_dst_address: dst_validator,
+                    amount: Some(SdkProtoCoin {
+                        amount: amount.amount.to_string(),
+                        denom: amount.denom,
+                    }),
+                }),
+            }
+            .to_any()
         })
         .collect();
 

@@ -21,3 +21,14 @@ pub struct MsgWrappedDelegate {
 impl CosmosAny for MsgWrappedDelegate {
     const TYPE_URL: &'static str = "/babylon.epoching.v1.MsgWrappedDelegate";
 }
+
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MsgWrappedBeginRedelegate {
+    #[prost(message, optional, tag = "1")]
+    pub msg: ::core::option::Option<cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate>,
+}
+
+impl CosmosAny for MsgWrappedBeginRedelegate {
+    const TYPE_URL: &'static str = "/babylon.epoching.v1.MsgWrappedBeginRedelegate";
+}
