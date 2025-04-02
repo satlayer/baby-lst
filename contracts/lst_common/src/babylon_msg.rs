@@ -1,15 +1,13 @@
 use cosmwasm_std::{AnyMsg, Binary, CosmosMsg};
 
-use crate::types::LstResult;
-
 pub trait CosmosAny: Sized + prost::Message {
     const TYPE_URL: &'static str;
 
-    fn to_any(&self) -> LstResult<CosmosMsg> {
-        Ok(CosmosMsg::Any(AnyMsg {
+    fn to_any(&self) -> CosmosMsg {
+        CosmosMsg::Any(AnyMsg {
             type_url: Self::TYPE_URL.to_string(),
             value: Binary::from(self.encode_to_vec()),
-        }))
+        })
     }
 }
 

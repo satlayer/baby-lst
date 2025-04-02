@@ -113,7 +113,7 @@ pub fn execute_stake(
                 }),
             }),
         };
-        external_call_msgs.push(msg.to_any()?);
+        external_call_msgs.push(msg.to_any());
     }
 
     //Skip minting of lst token in case of staking rewards
