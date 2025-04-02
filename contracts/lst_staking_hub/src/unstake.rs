@@ -23,11 +23,13 @@ fn check_for_undelegations(
     deps: &mut DepsMut,
     env: &Env,
     current_batch: &mut CurrentBatch,
-    state: &mut State,
 ) -> LstResult<Vec<CosmosMsg>> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
+
+    // check if slashing has occurred and update the exchange rate
+    let mut state = check_slashing(deps, env.clone())?;
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -36,7 +38,8 @@ fn check_for_undelegations(
 
     // if the epoch period is passed, the undelegate message would be sent
     if passed_time > epoch_period {
-        let mut undelegate_msgs = process_undelegations(deps, env.clone(), current_batch, state)?;
+        let mut undelegate_msgs =
+            process_undelegations(deps, env.clone(), current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
@@ -44,7 +47,7 @@ fn check_for_undelegations(
     CURRENT_BATCH.save(deps.storage, current_batch)?;
 
     // Store state's new exchange rate
-    STATE.save(deps.storage, state)?;
+    STATE.save(deps.storage, &state)?;
 
     Ok(messages)
 }
@@ -59,16 +62,13 @@ pub(crate) fn execute_unstake(
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
-    // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(&mut deps, env.clone())?;
-
     // add the unstaking amount to the current batch
     current_batch.requested_lst_token_amount += amount;
 
     let checked_sender = to_checked_address(deps.as_ref(), &sender)?;
     store_unstake_wait_list(deps.storage, current_batch.id, checked_sender, amount)?;
 
-    let mut messages = check_for_undelegations(&mut deps, &env, &mut current_batch, &mut state)?;
+    let mut messages = check_for_undelegations(&mut deps, &env, &mut current_batch)?;
 
     // send burn message to the token contract
     let config = CONFIG.load(deps.storage)?;
@@ -127,10 +127,7 @@ pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<R
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
-    // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(&mut deps, env.clone())?;
-
-    let messages = check_for_undelegations(&mut deps, &env, &mut current_batch, &mut state)?;
+    let messages = check_for_undelegations(&mut deps, &env, &mut current_batch)?;
 
     let res = Response::new()
         .add_messages(messages)
