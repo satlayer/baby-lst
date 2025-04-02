@@ -135,6 +135,7 @@ pub enum ExecuteMsg {
     /// This method is open to call to update the state of the contract like exchange rate, rewards.
     UpdateGlobalIndex {},
 
+    /// This method is used to process undelegations without calling the token contract. Batch is processed only if the epoch time has
     ProcessUndelegations {},
 }
 

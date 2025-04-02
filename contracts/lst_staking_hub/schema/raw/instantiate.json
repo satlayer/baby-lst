@@ -9,7 +9,7 @@
   ],
   "properties": {
     "epoch_length": {
-      "description": "Time to batch the unstake request in the staking hub",
+      "description": "Time to batch the unstake request in the staking hub. Should match the epoch length of chain",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
@@ -19,7 +19,7 @@
       "type": "string"
     },
     "unstaking_period": {
-      "description": "Unstaking period of the network",
+      "description": "Unstaking period of the chain",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

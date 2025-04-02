@@ -13,7 +13,7 @@
     ],
     "properties": {
       "epoch_length": {
-        "description": "Time to batch the unstake request in the staking hub",
+        "description": "Time to batch the unstake request in the staking hub. Should match the epoch length of chain",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
@@ -23,7 +23,7 @@
         "type": "string"
       },
       "unstaking_period": {
-        "description": "Unstaking period of the network",
+        "description": "Unstaking period of the chain",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
@@ -259,6 +259,20 @@
         ],
         "properties": {
           "update_global_index": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "This method is used to process undelegations without calling the token contract. Batch is processed only if the epoch time has",
+        "type": "object",
+        "required": [
+          "process_undelegations"
+        ],
+        "properties": {
+          "process_undelegations": {
             "type": "object",
             "additionalProperties": false
           }
