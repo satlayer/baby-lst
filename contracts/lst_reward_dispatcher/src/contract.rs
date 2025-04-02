@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg, attr, entry_point, to_json_binary,
+    attr, entry_point, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use lst_common::{
@@ -10,7 +10,7 @@ use lst_common::{
     ContractError, MigrateMsg,
 };
 
-use crate::{MAX_FEE_RATE, state::CONFIG};
+use crate::{state::CONFIG, MAX_FEE_RATE};
 use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 const CONTRACT_NAME: &str = "crates.io:reward-dispatcher";
@@ -32,6 +32,11 @@ pub fn instantiate(
         satlayer_fee_addr,
         satlayer_fee_rate,
     } = msg;
+
+    // Validate fee rate if provided
+    if satlayer_fee_rate > MAX_FEE_RATE {
+        return Err(ContractError::InvalidFeeRate {});
+    }
 
     let config = Config {
         owner: info.sender,
