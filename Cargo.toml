@@ -1,5 +1,11 @@
 [workspace]
 members = ["contracts/*"]
+default-members = [
+  "contracts/lst_staking_hub",
+  "contracts/lst_reward_dispatcher",
+  "contracts/lst_validators_registry",
+  "contracts/lst_token",
+]
 
 [workspace.package]
 authors = ["Satlayer"]
@@ -20,13 +26,7 @@ overflow-checks = true
 
 [workspace.dependencies]
 cosmwasm-schema = "2.2.0"
-cosmwasm-std = { version = "2.2.0", features = [
-  "cosmwasm_1_4",
-  # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
-  # "cosmwasm_2_0",
-  # Or this if you only deploy to chains that have CosmWasm 2.1 or higher
-  # "cosmwasm_2_1",
-] }
+cosmwasm-std = { version = "2.2.0", features = ["cosmwasm_2_0", "stargate"] }
 cw-storage-plus = "2.0.0"
 cw2 = "2.0.0"
 schemars = "0.8.16"
@@ -35,3 +35,6 @@ thiserror = { version = "1.0.58" }
 cw-multi-test = "2.0.0"
 cw20-base = "2.0.0"
 cw20 = "2.0.0"
+cosmos-sdk-proto = { version = "0.27", default-features = false, features = [
+  "cosmwasm",
+] }

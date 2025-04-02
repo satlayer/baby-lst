@@ -5,8 +5,13 @@ use cosmwasm_std::{
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    delegation::calculate_undelegations, errors::HubError, hub::CurrentBatch, hub::State,
-    to_checked_address, types::LstResult, validator::ValidatorResponse, ContractError, SignedInt,
+    delegation::calculate_undelegations,
+    errors::HubError,
+    hub::{CurrentBatch, State},
+    to_checked_address,
+    types::{LstResult, ResponseType},
+    validator::ValidatorResponse,
+    ContractError, SignedInt,
 };
 
 use crate::{
@@ -23,7 +28,7 @@ pub(crate) fn execute_unstake(
     env: Env,
     amount: Uint128,
     sender: String,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
@@ -32,7 +37,7 @@ pub(crate) fn execute_unstake(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(&mut deps, env.clone())?;
+    let mut state = check_slashing(&mut deps, &env)?;
 
     // add the unstaking amount to the current batch
     current_batch.requested_lst_token_amount += amount;
@@ -339,7 +344,7 @@ pub fn execute_withdraw_unstaked(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 

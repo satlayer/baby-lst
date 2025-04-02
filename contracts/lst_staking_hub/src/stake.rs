@@ -1,13 +1,15 @@
+use cosmos_sdk_proto::cosmos::{base::v1beta1::Coin, staking::v1beta1::MsgDelegate};
 use cosmwasm_std::{
-    attr, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
-    StakingMsg, Uint128, WasmMsg, WasmQuery,
+    attr, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
+    babylon_msg::{MsgWrappedDelegate, TypeUrl},
     calculate_delegations,
     errors::HubError,
-    types::LstResult,
+    types::{LstResult, ResponseType},
     validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, ValidatorError,
 };
@@ -23,7 +25,7 @@ pub fn execute_stake(
     env: Env,
     info: MessageInfo,
     stake_type: StakeType,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     let params = PARAMETERS.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
@@ -53,7 +55,7 @@ pub fn execute_stake(
         .ok_or(HubError::InvalidAmount)?;
 
     // check slashing and get the latest exchange rate
-    let state = check_slashing(&mut deps, env)?;
+    let state = check_slashing(&mut deps, &env)?;
 
     let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap_or_default();
 
@@ -96,16 +98,22 @@ pub fn execute_stake(
 
     let delegations = calculate_delegations(payment.amount, validators.as_slice())?;
 
-    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
+    let mut external_call_msgs: Vec<CosmosMsg> = vec![];
     for i in 0..delegations.len() {
         if delegations[i].is_zero() {
             continue;
         }
-
-        external_call_msgs.push(CosmosMsg::Staking(StakingMsg::Delegate {
-            validator: validators[i].address.clone(),
-            amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
-        }));
+        let msg = MsgWrappedDelegate {
+            msg: Some(MsgDelegate {
+                delegator_address: env.contract.address.clone().to_string(),
+                validator_address: validators[i].address.clone(),
+                amount: Some(Coin {
+                    denom: payment.denom.clone(),
+                    amount: delegations[i].u128().to_string(),
+                }),
+            }),
+        };
+        external_call_msgs.push(msg.to_any()?);
     }
 
     //Skip minting of lst token in case of staking rewards

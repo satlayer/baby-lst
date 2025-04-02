@@ -10,6 +10,7 @@ pub mod validator;
 pub use crate::signed_integer::SignedInt;
 use cosmwasm_std::{Addr, CanonicalAddr, Deps};
 use types::LstResult;
+pub mod babylon_msg;
 
 pub use crate::{
     delegation::calculate_delegations,

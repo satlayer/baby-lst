@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use lst_common::{
     hub::{Config, Parameters},
     to_checked_address,
-    types::LstResult,
+    types::{LstResult, ResponseType},
     ContractError,
 };
 
@@ -19,12 +19,12 @@ pub fn execute_update_config(
     lst_token: Option<String>,
     validator_registry: Option<String>,
     reward_dispatcher: Option<String>,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     is_authorized_sender(deps.as_ref(), info.sender)?;
 
     let mut config = CONFIG.load(deps.storage)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<CosmosMsg<ResponseType>> = vec![];
 
     if let Some(owner_addr) = owner {
         config.owner = to_checked_address(deps.as_ref(), &owner_addr)?;
@@ -84,7 +84,7 @@ pub fn execute_update_params(
     pause: Option<bool>,
     epoch_length: Option<u64>,
     unstaking_period: Option<u64>,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     is_authorized_sender(deps.as_ref(), info.sender)?;
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
