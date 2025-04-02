@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError};
+use cosmwasm_std::{Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
@@ -39,7 +39,7 @@ pub fn execute(
 
 pub mod execute {
     use cosmos_sdk_proto::traits::MessageExt;
-    use cosmwasm_std::AnyMsg;
+    use cosmwasm_std::{Addr, AnyMsg};
     use lst_common::babylon::epoching::v1::MsgWrappedDelegate;
 
     use super::*;

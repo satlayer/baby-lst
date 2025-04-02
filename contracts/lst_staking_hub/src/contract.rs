@@ -1,18 +1,25 @@
+use cosmos_sdk_proto::{
+    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgBeginRedelegate,
+    traits::MessageExt,
+};
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, Uint128, WasmMsg,
-    WasmQuery,
+    attr, entry_point, from_json, to_json_binary, AnyMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
-use lst_common::errors::HubError;
-use lst_common::hub::{
-    Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+use lst_common::{
+    babylon::epoching::v1::MsgWrappedBeginRedelegate,
+    errors::HubError,
+    hub::{
+        Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
+    },
+    types::LstResult,
+    ContractError,
 };
-use lst_common::types::LstResult;
-use lst_common::ContractError;
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::query::{
@@ -223,7 +230,7 @@ pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
 
 pub fn execute_redelegate_proxy(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     src_validator: String,
     redelegations: Vec<(String, Coin)>,
@@ -241,13 +248,15 @@ pub fn execute_redelegate_proxy(
     let messages: Vec<CosmosMsg> = redelegations
         .into_iter()
         .map(|(dst_validator, amount)| {
-            cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
-                src_validator: src_validator.clone(),
+            prepare_wrapped_begin_redelegate_msg(
+                amount.denom,
+                amount.amount.to_string(),
+                env.contract.address.to_string(),
+                src_validator.clone(),
                 dst_validator,
-                amount,
-            })
+            )
         })
-        .collect();
+        .collect::<LstResult<Vec<_>>>()?;
 
     let res = Response::new().add_messages(messages);
     Ok(res)
@@ -323,4 +332,34 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> LstResult<Vec<Cosm
     }
 
     Ok(messages)
+}
+
+fn prepare_wrapped_begin_redelegate_msg(
+    denom: String,
+    amount: String,
+    delegator_address: String,
+    validator_src_address: String,
+    validator_dst_address: String,
+) -> LstResult<CosmosMsg> {
+    let coin = ProtoCoin { denom, amount };
+
+    let redelegate_msg = MsgBeginRedelegate {
+        delegator_address,
+        validator_src_address,
+        validator_dst_address,
+        amount: Some(coin),
+    };
+
+    let bytes = MsgWrappedBeginRedelegate {
+        msg: Some(redelegate_msg),
+    }
+    .to_bytes()
+    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedBeginRedelegate"))?;
+
+    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
+        type_url: "/babylon.epoching.v1.MsgWrappedBeginRedelegate".to_string(),
+        value: Binary::from(bytes),
+    });
+
+    return Ok(msg);
 }

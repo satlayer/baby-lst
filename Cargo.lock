@@ -796,6 +796,7 @@ dependencies = [
 name = "lst_staking_hub"
 version = "0.0.1"
 dependencies = [
+ "cosmos-sdk-proto",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
