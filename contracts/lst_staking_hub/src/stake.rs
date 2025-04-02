@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    babylon_msg::{MsgWrappedDelegate, TypeUrl},
+    babylon_msg::{CosmosAny, MsgWrappedDelegate},
     calculate_delegations,
     errors::HubError,
     types::{LstResult, ResponseType},

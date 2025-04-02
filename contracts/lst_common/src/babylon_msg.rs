@@ -2,7 +2,7 @@ use cosmwasm_std::{AnyMsg, Binary, CosmosMsg};
 
 use crate::types::LstResult;
 
-pub trait TypeUrl: Sized + prost::Message {
+pub trait CosmosAny: Sized + prost::Message {
     const TYPE_URL: &'static str;
 
     fn to_any(&self) -> LstResult<CosmosMsg> {
@@ -20,6 +20,6 @@ pub struct MsgWrappedDelegate {
     pub msg: ::core::option::Option<cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate>,
 }
 
-impl TypeUrl for MsgWrappedDelegate {
+impl CosmosAny for MsgWrappedDelegate {
     const TYPE_URL: &'static str = "/babylon.epoching.v1.MsgWrappedDelegate";
 }
