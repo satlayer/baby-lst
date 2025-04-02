@@ -1,10 +1,12 @@
+use cosmos_sdk_proto::cosmos::{base::v1beta1::Coin, staking::v1beta1::MsgUndelegate};
 use cosmwasm_std::{
-    attr, coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
-    MessageInfo, Response, StakingMsg, Storage, Uint128, Uint256, WasmMsg,
+    attr, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
+    MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
+    babylon_msg::{CosmosAny, MsgWrappedUndelegate},
     delegation::calculate_undelegations,
     errors::HubError,
     hub::{CurrentBatch, State},
@@ -179,11 +181,18 @@ fn pick_validator(
             continue;
         }
 
-        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: validators[index].address.clone(),
-            amount: coin(undelegated_amount.u128(), &staking_coin_denom),
-        });
-        messages.push(msgs);
+        let msg = MsgWrappedUndelegate {
+            msg: Some(MsgUndelegate {
+                delegator_address: delegator.clone(),
+                validator_address: validators[index].address.clone(),
+                amount: Some(Coin {
+                    denom: staking_coin_denom.clone(),
+                    amount: undelegated_amount.to_string(),
+                }),
+            }),
+        }
+        .to_any();
+        messages.push(msg);
     }
 
     Ok(messages)

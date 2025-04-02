@@ -1,3 +1,4 @@
+use cosmos_sdk_proto::cosmos::staking::v1beta1::{MsgBeginRedelegate, MsgDelegate, MsgUndelegate};
 use cosmwasm_std::{AnyMsg, Binary, CosmosMsg};
 
 pub trait CosmosAny: Sized + prost::Message {
@@ -15,7 +16,7 @@ pub trait CosmosAny: Sized + prost::Message {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MsgWrappedDelegate {
     #[prost(message, optional, tag = "1")]
-    pub msg: ::core::option::Option<cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate>,
+    pub msg: Option<MsgDelegate>,
 }
 
 impl CosmosAny for MsgWrappedDelegate {
@@ -26,9 +27,20 @@ impl CosmosAny for MsgWrappedDelegate {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MsgWrappedBeginRedelegate {
     #[prost(message, optional, tag = "1")]
-    pub msg: ::core::option::Option<cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate>,
+    pub msg: Option<MsgBeginRedelegate>,
 }
 
 impl CosmosAny for MsgWrappedBeginRedelegate {
     const TYPE_URL: &'static str = "/babylon.epoching.v1.MsgWrappedBeginRedelegate";
+}
+
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MsgWrappedUndelegate {
+    #[prost(message, optional, tag = "1")]
+    pub msg: Option<MsgUndelegate>,
+}
+
+impl CosmosAny for MsgWrappedUndelegate {
+    const TYPE_URL: &'static str = "/babylon.epoching.v1.MsgWrappedUndelegate";
 }
