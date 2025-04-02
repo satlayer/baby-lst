@@ -32,6 +32,9 @@ pub enum ContractError {
 
     #[error(transparent)]
     Hub(#[from] HubError),
+
+    #[error("Fee rate must be less than 30%")]
+    InvalidFeeRate {},
 }
 
 #[derive(Error, Debug, PartialEq)]
