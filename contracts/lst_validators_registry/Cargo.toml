@@ -1,6 +1,6 @@
 [package]
 name = "lst_validators_registry"
-edition = "2024"
+edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 version.workspace = true
