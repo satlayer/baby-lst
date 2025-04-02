@@ -23,6 +23,12 @@ pub enum StakeType {
     StakeRewards,
 }
 
+#[derive(PartialEq)]
+pub enum UnstakeType {
+    BurnFlow,
+    BurnFromFlow,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnStakeHistory {
     pub batch_id: u64,
