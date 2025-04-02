@@ -91,6 +91,8 @@ pub enum ExecuteMsg {
     StakeRewards {},
 
     UpdateGlobalIndex {},
+
+    ProcessUndelegations {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]

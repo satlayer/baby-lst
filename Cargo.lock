@@ -809,6 +809,7 @@ dependencies = [
 name = "lst_validators_registry"
 version = "0.0.1"
 dependencies = [
+ "bech32",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
