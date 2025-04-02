@@ -1,18 +1,15 @@
-use cosmos_sdk_proto::{
-    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgDelegate,
-    traits::MessageExt,
-};
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate;
 use cosmwasm_std::{
-    attr, to_json_binary, AnyMsg, Binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest,
-    Response, StdError, Uint128, WasmMsg, WasmQuery,
+    attr, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    babylon::epoching::v1::MsgWrappedDelegate,
+    babylon_msg::{CosmosAny, MsgWrappedDelegate},
     calculate_delegations,
     errors::HubError,
-    types::{LstResult, ResponseType},
+    types::{LstResult, ProtoCoin, ResponseType},
     validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, ValidatorError,
 };
@@ -112,7 +109,7 @@ pub fn execute_stake(
             delegations[i].to_string(),
             env.contract.address.to_string(),
             validators[i].address.to_string(),
-        )?;
+        );
 
         external_call_msgs.push(msg);
     }
@@ -160,7 +157,7 @@ fn prepare_wrapped_delegate_msg(
     amount: String,
     delegator_address: String,
     validator_address: String,
-) -> LstResult<CosmosMsg> {
+) -> CosmosMsg {
     let coin = ProtoCoin { denom, amount };
 
     let delegate_msg = MsgDelegate {
@@ -169,16 +166,8 @@ fn prepare_wrapped_delegate_msg(
         amount: Some(coin),
     };
 
-    let bytes = MsgWrappedDelegate {
+    MsgWrappedDelegate {
         msg: Some(delegate_msg),
     }
-    .to_bytes()
-    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedDelegate"))?;
-
-    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
-        type_url: "/babylon.epoching.v1.MsgWrappedDelegate".to_string(),
-        value: Binary::from(bytes),
-    });
-
-    return Ok(msg);
+    .to_any()
 }

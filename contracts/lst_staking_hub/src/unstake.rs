@@ -1,22 +1,18 @@
-use cosmos_sdk_proto::{
-    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgUndelegate,
-    traits::MessageExt,
-};
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
-    attr, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
-    DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
+    attr, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
+    MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    babylon::epoching::v1::MsgWrappedUndelegate,
+    babylon_msg::{CosmosAny, MsgWrappedUndelegate},
     delegation::calculate_undelegations,
     errors::HubError,
-    hub::CurrentBatch,
-    hub::State,
+    hub::{CurrentBatch, State},
     to_checked_address,
-    types::{LstResult, ResponseType},
+    types::{LstResult, ProtoCoin, ResponseType},
     validator::ValidatorResponse,
     ContractError, SignedInt,
 };
@@ -246,7 +242,7 @@ fn pick_validator(deps: &mut DepsMut, env: Env, claim: Uint128) -> LstResult<Vec
             undelegated_amount.to_string(),
             delegator_address.to_string(),
             validators[index].address.to_string(),
-        )?;
+        );
 
         messages.push(msg);
     }
@@ -468,7 +464,7 @@ fn prepare_wrapped_undelegate_msg(
     amount: String,
     delegator_address: String,
     validator_address: String,
-) -> LstResult<CosmosMsg> {
+) -> CosmosMsg {
     let coin = ProtoCoin { denom, amount };
 
     let undelegate_msg = MsgUndelegate {
@@ -477,16 +473,8 @@ fn prepare_wrapped_undelegate_msg(
         amount: Some(coin),
     };
 
-    let bytes = MsgWrappedUndelegate {
+    MsgWrappedUndelegate {
         msg: Some(undelegate_msg),
     }
-    .to_bytes()
-    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedUndelegate"))?;
-
-    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
-        type_url: "/babylon.epoching.v1.MsgWrappedUndelegate".to_string(),
-        value: Binary::from(bytes),
-    });
-
-    return Ok(msg);
+    .to_any()
 }

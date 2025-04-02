@@ -7,16 +7,6 @@ mod signed_integer;
 pub mod types;
 pub mod validator;
 
-pub mod babylon {
-    pub mod epoching {
-        // @@protoc_insertion_point(attribute:babylon.epoching.v1)
-        pub mod v1 {
-            include!("babylon.epoching.v1.rs");
-            // @@protoc_insertion_point(babylon.epoching.v1)
-        }
-    }
-}
-
 pub use crate::signed_integer::SignedInt;
 use cosmwasm_std::{Addr, CanonicalAddr, Deps};
 use types::LstResult;

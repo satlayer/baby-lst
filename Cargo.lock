@@ -1227,6 +1227,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "test_utils"
+version = "0.0.1"
+dependencies = [
+ "cosmwasm-std",
+ "cw-multi-test",
+ "lst_common",
+ "lst_reward_dispatcher",
+ "lst_staking_hub",
+ "lst_validators_registry",
+ "serde",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
