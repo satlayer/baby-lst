@@ -339,7 +339,7 @@ fn process_withdraw_rate(
 
     // Process each history record
     for (batch_id, history) in histories {
-        let lst_new_withdraw_rate = calculate_new_withdraw_rate(
+        let new_withdraw_rate = calculate_new_withdraw_rate(
             history.lst_token_amount,
             history.lst_withdraw_rate,
             lst_total_unstaked_amount,
@@ -347,7 +347,7 @@ fn process_withdraw_rate(
         );
 
         let mut unstake_history_batch = history;
-        unstake_history_batch.lst_withdraw_rate = lst_new_withdraw_rate;
+        unstake_history_batch.lst_applied_exchange_rate = new_withdraw_rate;
         unstake_history_batch.released = true;
         UNSTAKE_HISTORY.save(deps.storage, batch_id, &unstake_history_batch)?;
         state.last_processed_batch = batch_id;

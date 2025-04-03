@@ -77,7 +77,7 @@ pub fn get_finished_amount(
                 deprecated_batches.push(batch_id);
 
                 // Calculate withdrawable amount using withdraw rate
-                let amount = decimal_multiplication(lst_amount, history.lst_withdraw_rate);
+                let amount = decimal_multiplication(lst_amount, history.lst_applied_exchange_rate);
                 withdrawable_amount += amount;
             }
         }
