@@ -421,60 +421,53 @@ pub fn execute_withdraw_unstaked(
     env: Env,
     info: MessageInfo,
 ) -> LstResult<Response<ResponseType>> {
-    let sender_human = info.sender;
-    let contract_address = env.contract.address.clone();
-
-    // read params
+    // Early parameter loading
     let params = PARAMETERS.load(deps.storage)?;
-    let unstaking_period = params.unstaking_period;
-    let staking_coin_denom = params.staking_coin_denom;
+    let unstake_cutoff_time = env.block.time.seconds() - params.unstaking_period;
 
-    // unstake before this time are completed
-    let unstake_cutoff_time = env.block.time.seconds() - unstaking_period;
-
-    // query hub balance for process withdraw rate
-    let hub_balance = deps
-        .querier
-        .query_balance(&contract_address, &*staking_coin_denom)?
+    // Get hub balance
+    let hub_balance = deps.querier
+        .query_balance(&env.contract.address, &*params.staking_coin_denom)?
         .amount;
 
+    // Process withdrawal rate first (MUST be before get_finished_amount)
     process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
 
-    let (withdraw_amount, deprecated_batches) =
-        get_finished_amount(deps.storage, sender_human.clone())?;
+    // Get withdrawable amount after rates are updated
+    let (withdraw_amount, deprecated_batches) = 
+        get_finished_amount(deps.storage, info.sender.clone())?;
 
+    // Early validation
     if withdraw_amount.is_zero() {
-        return Err(lst_common::ContractError::Hub(
-            HubError::NoWithdrawableAssets,
-        ));
+        return Err(lst_common::ContractError::Hub(HubError::NoWithdrawableAssets));
     }
 
-    // remove the previous batches for the user
-    remove_unstake_wait_list(deps.storage, deprecated_batches, sender_human.clone())?;
-    // Update previous balance used for calculation in next staking token batch release
+    // Clean up and state update
+    remove_unstake_wait_list(deps.storage, deprecated_batches, info.sender.clone())?;
+    
     let prev_balance = hub_balance
         .checked_sub(withdraw_amount)
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
-    STATE.update(deps.storage, |mut last_state| -> LstResult<_> {
-        last_state.prev_hub_balance = prev_balance;
-        Ok(last_state)
+    
+    STATE.update(deps.storage, |mut state| -> LstResult<_> {
+        state.prev_hub_balance = prev_balance;
+        Ok(state)
     })?;
 
-    // Send the money to the user
-    let msgs: Vec<CosmosMsg> = vec![BankMsg::Send {
-        to_address: sender_human.to_string(),
-        amount: coins(withdraw_amount.u128(), &*staking_coin_denom),
-    }
-    .into()];
-
-    let res = Response::new().add_messages(msgs).add_attributes(vec![
-        attr("action", "finish_burn"),
-        attr("from", contract_address),
-        attr("amount", withdraw_amount),
-    ]);
-    Ok(res)
+    // Create response
+    Ok(Response::new()
+        .add_message(BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: coins(withdraw_amount.u128(), &*params.staking_coin_denom),
+        })
+        .add_attributes(vec![
+            attr("action", "finish_burn"),
+            attr("from", env.contract.address),
+            attr("amount", withdraw_amount),
+        ]))
 }
 
+// Prepare the custom wrapped undelegate message
 fn prepare_wrapped_undelegate_msg(
     denom: String,
     amount: String,
