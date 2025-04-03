@@ -61,7 +61,7 @@ pub(crate) fn execute_unstake(
                 },
             )?;
             if balance_response.balance < amount {
-                return Err(ContractError::Hub(HubError::InvalidAmount));
+                return Err(ContractError::Hub(HubError::InsufficientFunds));
             }
             // Query the allowance granted to the contract
             let allowance_response: AllowanceResponse = deps.querier.query_wasm_smart(
@@ -72,7 +72,7 @@ pub(crate) fn execute_unstake(
                 },
             )?;
             if allowance_response.allowance < amount {
-                return Err(ContractError::Hub(HubError::InvalidAmount));
+                return Err(ContractError::Hub(HubError::InsufficientAllowance));
             }
 
             Cw20ExecuteMsg::BurnFrom {
