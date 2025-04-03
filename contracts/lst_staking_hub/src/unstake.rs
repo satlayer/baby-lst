@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
-    attr, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
-    DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
+    attr, coins, to_json_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DecimalRangeExceeded,
+    DepsMut, Env, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -277,35 +277,6 @@ fn pick_validator_for_undelegation(
     Ok(messages)
 }
 
-// Helper function to get unprocessed histories
-fn get_unprocessed_histories(
-    storage: &dyn Storage,
-    start_batch: u64,
-    unstake_cutoff_time: u64,
-) -> LstResult<Vec<(u64, UnStakeHistory)>> {
-    let mut histories = Vec::new();
-    let mut i = start_batch + 1;
-
-    loop {
-        match read_unstake_history(storage, i) {
-            Ok(h) => {
-                if h.time > unstake_cutoff_time {
-                    break;
-                }
-                if !h.released {
-                    histories.push((i, h));
-                } else {
-                    break;
-                }
-            }
-            Err(_) => break,
-        }
-        i += 1;
-    }
-
-    Ok(histories)
-}
-
 // This is designed for an accurate unstaked amount calculation. Execute while processing withdraw_unstaked
 // Handles the calculation and update of withdrawal rates after slashing events
 fn process_withdraw_rate(
@@ -326,28 +297,26 @@ fn process_withdraw_rate(
         return Ok(());
     }
 
-    // Calculate total unstaked amount and slashing
-    let lst_total_unstaked_amount = calculate_newly_added_unstaked_amount(histories.clone());
+    // Calculate total unstaked amount
+    let total_unstaked_amount = calculate_newly_added_unstaked_amount(histories.clone());
 
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     let actual_unstaked_amount = balance_change.0;
 
-    let lst_slashed_amount = SignedInt::from_subtraction(
-        lst_total_unstaked_amount,
-        Uint256::from(actual_unstaked_amount),
-    );
+    let slashed_amount =
+        SignedInt::from_subtraction(total_unstaked_amount, Uint256::from(actual_unstaked_amount));
 
     // Process each history record
     for (batch_id, history) in histories {
         let new_withdraw_rate = calculate_new_withdraw_rate(
             history.lst_token_amount,
             history.lst_withdraw_rate,
-            lst_total_unstaked_amount,
-            lst_slashed_amount,
+            total_unstaked_amount,
+            slashed_amount,
         );
 
         let mut unstake_history_batch = history;
-        unstake_history_batch.lst_applied_exchange_rate = new_withdraw_rate;
+        unstake_history_batch.lst_applied_exchange_rate = new_withdraw_rate.unwrap();
         unstake_history_batch.released = true;
         UNSTAKE_HISTORY.save(deps.storage, batch_id, &unstake_history_batch)?;
         state.last_processed_batch = batch_id;
@@ -357,65 +326,96 @@ fn process_withdraw_rate(
     Ok(())
 }
 
+// Helper function to get unprocessed histories
+// Only return the histories for which the unstaking cutoff time has passed, haven't been released yet and exists in storage
+fn get_unprocessed_histories(
+    storage: &dyn Storage,
+    start_batch: u64,
+    unstake_cutoff_time: u64,
+) -> LstResult<Vec<(u64, UnStakeHistory)>> {
+    let mut histories = Vec::new();
+    let mut batch_id = start_batch + 1;
+
+    loop {
+        match read_unstake_history(storage, batch_id) {
+            Ok(h) => {
+                if h.time > unstake_cutoff_time {
+                    break;
+                }
+                if !h.released {
+                    histories.push((batch_id, h));
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+        batch_id += 1;
+    }
+
+    Ok(histories)
+}
+
+// Sums up actual unstaked amount using the burnt lst amount and withdraw rate at time of unstaking
+// After slashing, the amount and rate is updated
 fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnStakeHistory)>) -> Uint256 {
-    let lst_total_unstaked_amount = histories.iter().fold(Uint256::zero(), |acc, (_, history)| {
+    let total_unstaked_amount = histories.iter().fold(Uint256::zero(), |acc, (_, history)| {
         let lst_burnt_amount = Uint256::from(history.lst_token_amount);
         let lst_historical_rate = Decimal256::from(history.lst_withdraw_rate);
         let lst_unstaked_amount = decimal_multiplication_256(lst_burnt_amount, lst_historical_rate);
         acc + lst_unstaked_amount
     });
 
-    lst_total_unstaked_amount
+    total_unstaked_amount
 }
 
+// Handle slashing events and adjusting withdrawal rates
+// This method calculates a new withdrawal rate for a batch of unstaked tokens after a slashing event has occured.
+// It ensures that the impact of slashing is properly distributed across different batches of unstaked tokens.
 fn calculate_new_withdraw_rate(
-    amount: Uint128,
+    total_lst_burnt: Uint128,
     withdraw_rate: Decimal,
     total_unstaked_amount: Uint256,
     slashed_amount: SignedInt,
-) -> Decimal {
-    let burnt_amount_of_batch = Uint256::from(amount);
+) -> LstResult<Decimal> {
+    if total_lst_burnt.is_zero() || total_unstaked_amount.is_zero() || slashed_amount.0.is_zero() {
+        return Ok(withdraw_rate);
+    }
+
+    // calculate the unstaked amount of the batch using the withdraw rate
+    let burnt_amount_of_batch = Uint256::from(total_lst_burnt);
     let historical_rate_of_batch = Decimal256::from(withdraw_rate);
     let unstaked_amount_of_batch =
         decimal_multiplication_256(burnt_amount_of_batch, historical_rate_of_batch);
 
-    let batch_slashing_weight = if total_unstaked_amount != Uint256::zero() {
-        Decimal256::from_ratio(unstaked_amount_of_batch, total_unstaked_amount)
-    } else {
-        Decimal256::zero()
-    };
-
-    let mut slashed_amount_of_batch =
+    // Calculate batch weight and slashed amount in one step
+    let batch_slashing_weight =
+        Decimal256::from_ratio(unstaked_amount_of_batch, total_unstaked_amount);
+    let slashed_amount_of_batch =
         decimal_multiplication_256(Uint256::from(slashed_amount.0), batch_slashing_weight);
 
-    let actual_unstaked_amount_of_batch: Uint256;
-
-    // If slashed amount is negative, there should be summation instead of subtraction
-    if slashed_amount.1 {
-        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::one() {
-            slashed_amount_of_batch - Uint256::one()
-        } else {
-            Uint256::zero()
-        };
-        actual_unstaked_amount_of_batch = unstaked_amount_of_batch + slashed_amount_of_batch;
+    // Handle slashing adjustment based on direction
+    let actual_unstaked_amount_of_batch = if slashed_amount.1 {
+        // Negative slashing: add to unstaked amount
+        unstaked_amount_of_batch + slashed_amount_of_batch
     } else {
-        if slashed_amount.0.u128() != 0u128 {
-            slashed_amount_of_batch += Uint256::one();
-        }
-        actual_unstaked_amount_of_batch = Uint256::from(
-            SignedInt::from_subtraction(unstaked_amount_of_batch, slashed_amount_of_batch).0,
-        );
-    }
+        // Positive slashing: subtract from unstaked amount
+        unstaked_amount_of_batch
+            .checked_sub(slashed_amount_of_batch)
+            .unwrap_or(Uint256::zero())
+    };
 
-    if burnt_amount_of_batch != Uint256::zero() {
+    // Calculate and return new rate
+    Ok(
         Decimal256::from_ratio(actual_unstaked_amount_of_batch, burnt_amount_of_batch)
             .try_into()
-            .unwrap()
-    } else {
-        withdraw_rate
-    }
+            .map_err(|e: DecimalRangeExceeded| ContractError::Overflow(e.to_string()))?,
+    )
 }
 
+// Process the withdrawal of unstaked tokens by users
+// This method allows users to withdraw their unstaked tokens after the unstaking period has elapsed. It handles the calculation of
+// withdrawable amounts, updates the state, and send the tokens to the user.
 pub fn execute_withdraw_unstaked(
     mut deps: DepsMut,
     env: Env,

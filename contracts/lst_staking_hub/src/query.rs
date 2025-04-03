@@ -104,7 +104,8 @@ fn query_get_finished_amount(
         .fold(Uint128::zero(), |acc, (batch_id, lst_amount)| {
             if let Ok(history) = read_unstake_history(storage, batch_id) {
                 if history.time < block_time {
-                    return acc + decimal_multiplication(lst_amount, history.lst_applied_exchange_rate);
+                    return acc
+                        + decimal_multiplication(lst_amount, history.lst_applied_exchange_rate);
                 }
             }
             acc
