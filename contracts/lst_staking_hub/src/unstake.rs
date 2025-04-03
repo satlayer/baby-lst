@@ -426,7 +426,8 @@ pub fn execute_withdraw_unstaked(
     let unstake_cutoff_time = env.block.time.seconds() - params.unstaking_period;
 
     // Get hub balance
-    let hub_balance = deps.querier
+    let hub_balance = deps
+        .querier
         .query_balance(&env.contract.address, &*params.staking_coin_denom)?
         .amount;
 
@@ -434,21 +435,23 @@ pub fn execute_withdraw_unstaked(
     process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
 
     // Get withdrawable amount after rates are updated
-    let (withdraw_amount, deprecated_batches) = 
+    let (withdraw_amount, deprecated_batches) =
         get_finished_amount(deps.storage, info.sender.clone())?;
 
     // Early validation
     if withdraw_amount.is_zero() {
-        return Err(lst_common::ContractError::Hub(HubError::NoWithdrawableAssets));
+        return Err(lst_common::ContractError::Hub(
+            HubError::NoWithdrawableAssets,
+        ));
     }
 
     // Clean up and state update
     remove_unstake_wait_list(deps.storage, deprecated_batches, info.sender.clone())?;
-    
+
     let prev_balance = hub_balance
         .checked_sub(withdraw_amount)
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
-    
+
     STATE.update(deps.storage, |mut state| -> LstResult<_> {
         state.prev_hub_balance = prev_balance;
         Ok(state)
