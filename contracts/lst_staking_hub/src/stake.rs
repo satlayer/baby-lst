@@ -73,11 +73,11 @@ pub fn execute_stake(
     STATE.update(deps.storage, |mut prev_state| -> LstResult<_> {
         match stake_type {
             StakeType::LSTMint => {
-                prev_state.total_lst_token_amount += payment.amount;
+                prev_state.total_staked_amount += payment.amount;
                 Ok(prev_state)
             }
             StakeType::StakeRewards => {
-                prev_state.total_lst_token_amount += payment.amount;
+                prev_state.total_staked_amount += payment.amount;
                 prev_state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
                 Ok(prev_state)
             }

@@ -182,9 +182,9 @@ fn process_undelegations(
     // send undelegate requests to possibly more than one validators
     let undelegate_msgs = pick_validator(deps, env.clone(), lst_undelegation_amount)?;
 
-    state.total_lst_token_amount = state
-        .total_lst_token_amount
-        .checked_sub(lst_undelegation_amount)
+    state.total_staked_amount = state
+        .total_staked_amount
+        .checked_sub(unstaked_amount_in_batch)
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
     // Store history for withdraw unstaked

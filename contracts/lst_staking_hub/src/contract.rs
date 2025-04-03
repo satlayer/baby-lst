@@ -71,7 +71,7 @@ pub fn instantiate(
     // store state
     let state = State {
         lst_exchange_rate: Decimal::one(),
-        total_lst_token_amount: Uint128::zero(),
+        total_staked_amount: Uint128::zero(),
         last_index_modification: env.block.time.seconds(),
         prev_hub_balance: Uint128::zero(),
         last_unbonded_time: env.block.time.seconds(),
@@ -230,7 +230,7 @@ pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
     }
 
     // Check the amount that contract thinks is staked
-    let state_total_staked = state.total_lst_token_amount;
+    let state_total_staked = state.total_staked_amount;
     if state_total_staked.is_zero() {
         return Ok(state);
     }
@@ -241,7 +241,7 @@ pub fn query_actual_state(deps: Deps, env: Env) -> LstResult<State> {
     let current_requested_lst_token_amount = current_batch.requested_lst_token_amount;
 
     if state_total_staked.u128() > actual_total_staked.u128() {
-        state.total_lst_token_amount = actual_total_staked;
+        state.total_staked_amount = actual_total_staked;
     }
 
     state.update_lst_exchange_rate(lst_total_issued, current_requested_lst_token_amount);
