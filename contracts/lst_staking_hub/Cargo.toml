@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 library = []
+testonly = []
 
 [dependencies]
 lst_common = { path = "../lst_common", default-features = false }

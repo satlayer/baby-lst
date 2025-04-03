@@ -1,0 +1,20 @@
+[package]
+name = "lst_integration"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cw-multi-test.workspace = true
+cosmwasm-std.workspace = true
+serde.workspace = true
+
+
+[dev-dependencies]
+cw20-base.workspace = true
+lst_common = { path = "../lst_common" }
+lst_reward_dispatcher = { path = "../lst_reward_dispatcher" }
+lst_staking_hub = { path = "../lst_staking_hub", features = ["testonly"] }
+lst_validators_registry = { path = "../lst_validators_registry" }
+lst_token = { path = "../lst_token" }
+anyhow = "*"

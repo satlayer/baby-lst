@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
-    attr, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
-    MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
+    attr, coins, to_json_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DecimalRangeExceeded,
+    DepsMut, Env, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -264,6 +264,13 @@ fn pick_validator_for_undelegation(
             continue;
         }
 
+        #[cfg(feature = "testonly")]
+        let msg = cosmwasm_std::CosmosMsg::Staking(cosmwasm_std::StakingMsg::Undelegate {
+            validator: validators[index].address.to_string(),
+            amount: cosmwasm_std::coin(undelegated_amount.u128(), staking_coin_denom.clone()),
+        });
+
+        #[cfg(not(feature = "testonly"))]
         let msg = prepare_wrapped_undelegate_msg(
             staking_coin_denom.clone(),
             undelegated_amount.to_string(),

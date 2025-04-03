@@ -763,6 +763,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lst_integration"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw20-base",
+ "lst_common",
+ "lst_reward_dispatcher",
+ "lst_staking_hub",
+ "lst_token",
+ "lst_validators_registry",
+ "serde",
+]
+
+[[package]]
 name = "lst_reward_dispatcher"
 version = "0.0.1"
 dependencies = [
@@ -1224,19 +1240,6 @@ dependencies = [
  "serde_bytes",
  "subtle-encoding",
  "time",
-]
-
-[[package]]
-name = "test_utils"
-version = "0.0.1"
-dependencies = [
- "cosmwasm-std",
- "cw-multi-test",
- "lst_common",
- "lst_reward_dispatcher",
- "lst_staking_hub",
- "lst_validators_registry",
- "serde",
 ]
 
 [[package]]

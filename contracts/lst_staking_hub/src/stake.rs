@@ -104,6 +104,13 @@ pub fn execute_stake(
             continue;
         }
 
+        #[cfg(feature = "testonly")]
+        let msg: CosmosMsg = CosmosMsg::Staking(cosmwasm_std::StakingMsg::Delegate {
+            validator: validators[i].address.to_string(),
+            amount: cosmwasm_std::coin(delegations[i].u128(), payment.denom.to_string()),
+        });
+
+        #[cfg(not(feature = "testonly"))]
         let msg = prepare_wrapped_delegate_msg(
             payment.denom.to_string(),
             delegations[i].to_string(),
