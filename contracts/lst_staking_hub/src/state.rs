@@ -31,11 +31,17 @@ pub enum UnstakeType {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnStakeHistory {
+    /// Batch id of the unstake request
     pub batch_id: u64,
+    /// Time at which the unstake request was made
     pub time: u64,
+    /// Amount of lst token unstaked or burnt in the batch
     pub lst_token_amount: Uint128,
+    /// Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
     pub lst_applied_exchange_rate: Decimal,
+    /// Exchange rate of the lst token at the time of unstake/burning of lst token
     pub lst_withdraw_rate: Decimal,
+    /// Whether the batch is processsed/released to get updated withdraw rate
     pub released: bool,
 }
 
@@ -50,7 +56,7 @@ pub fn read_unstake_history(storage: &dyn Storage, epoch_id: u64) -> LstResult<U
 // Return all requested unstaked amount.
 // This needs to be called after process withdraw rate function
 // If the batch is released, this will return user's requested amount
-// proportional to withdraw rate
+// proportional to new withdraw rate
 pub fn get_finished_amount(
     storage: &dyn Storage,
     sender_addr: Addr,
@@ -77,7 +83,7 @@ pub fn get_finished_amount(
                 deprecated_batches.push(batch_id);
 
                 // Calculate withdrawable amount using withdraw rate
-                let amount = decimal_multiplication(lst_amount, history.lst_withdraw_rate);
+                let amount = decimal_multiplication(lst_amount, history.lst_applied_exchange_rate);
                 withdrawable_amount += amount;
             }
         }

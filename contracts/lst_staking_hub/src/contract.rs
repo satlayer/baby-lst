@@ -25,7 +25,10 @@ use crate::query::{
 };
 use crate::stake::execute_stake;
 use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use crate::unstake::{execute_process_undelegations, execute_unstake, execute_withdraw_unstaked};
+use crate::unstake::{
+    execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,
+    execute_withdraw_unstaked,
+};
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
 
@@ -67,7 +70,7 @@ pub fn instantiate(
     // store state
     let state = State {
         lst_exchange_rate: Decimal::one(),
-        total_lst_token_amount: Uint128::zero(),
+        total_staked_amount: Uint128::zero(),
         last_index_modification: env.block.time.seconds(),
         prev_hub_balance: Uint128::zero(),
         last_unbonded_time: env.block.time.seconds(),
@@ -153,6 +156,7 @@ pub fn execute(
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
         ExecuteMsg::UpdateGlobalIndex {} => execute_update_global_index(deps, env),
         ExecuteMsg::ProcessUndelegations {} => execute_process_undelegations(deps, env),
+        ExecuteMsg::ProcessWithdrawRequests {} => execute_process_withdraw_requests(deps, env),
     }
 }
 
@@ -233,7 +237,7 @@ pub fn query_actual_state(deps: Deps, env: &Env) -> LstResult<State> {
     }
 
     // Check the amount that contract thinks is staked
-    let state_total_staked = state.total_lst_token_amount;
+    let state_total_staked = state.total_staked_amount;
     if state_total_staked.is_zero() {
         return Ok(state);
     }
@@ -244,7 +248,7 @@ pub fn query_actual_state(deps: Deps, env: &Env) -> LstResult<State> {
     let current_requested_lst_token_amount = current_batch.requested_lst_token_amount;
 
     if state_total_staked.u128() > actual_total_staked.u128() {
-        state.total_lst_token_amount = actual_total_staked;
+        state.total_staked_amount = actual_total_staked;
     }
 
     state.update_lst_exchange_rate(lst_total_issued, current_requested_lst_token_amount);
