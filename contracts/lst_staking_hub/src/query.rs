@@ -139,7 +139,7 @@ pub fn get_unstake_requests(
         .prefix(address)
         .range(
             storage,
-            start_from.map(Bound::exclusive),
+            start_from.map(Bound::inclusive),
             None,
             cosmwasm_std::Order::Ascending,
         )
@@ -168,7 +168,7 @@ fn all_unstake_history(
     UNSTAKE_HISTORY
         .range(
             storage,
-            start.map(Bound::exclusive),
+            start.map(Bound::inclusive),
             None,
             cosmwasm_std::Order::Ascending,
         )
