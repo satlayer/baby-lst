@@ -1,18 +1,20 @@
-use cosmos_sdk_proto::{
-    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgUndelegate,
-    traits::MessageExt,
-};
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
-    attr, coins, to_json_binary, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256, DepsMut,
-    Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
+    attr, coins, to_json_binary, Addr, AnyMsg, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
+    DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    babylon::epoching::v1::MsgWrappedUndelegate, delegation::calculate_undelegations,
-    errors::HubError, hub::CurrentBatch, hub::State, to_checked_address, types::LstResult,
-    validator::ValidatorResponse, ContractError, SignedInt,
+    babylon_msg::{CosmosAny, MsgWrappedUndelegate},
+    delegation::calculate_undelegations,
+    errors::HubError,
+    hub::{CurrentBatch, State},
+    to_checked_address,
+    types::{LstResult, ProtoCoin, ResponseType},
+    validator::ValidatorResponse,
+    ContractError, SignedInt,
 };
 
 use crate::{
@@ -32,7 +34,7 @@ pub(crate) fn execute_unstake(
     amount: Uint128,
     sender: String,
     flow: UnstakeType,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
@@ -108,7 +110,7 @@ fn check_for_unstake_batch_epoch_completion(
     let epoch_period = params.epoch_length;
 
     // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(deps, env.clone())?;
+    let mut state = check_slashing(deps, &env)?;
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -267,7 +269,7 @@ fn pick_validator_for_undelegation(
             undelegated_amount.to_string(),
             delegator_address.to_string(),
             validators[index].address.to_string(),
-        )?;
+        );
 
         messages.push(msg);
     }
@@ -426,7 +428,7 @@ pub fn execute_withdraw_unstaked(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 
@@ -486,7 +488,7 @@ fn prepare_wrapped_undelegate_msg(
     amount: String,
     delegator_address: String,
     validator_address: String,
-) -> LstResult<CosmosMsg> {
+) -> CosmosMsg {
     let coin = ProtoCoin { denom, amount };
 
     let undelegate_msg = MsgUndelegate {
@@ -495,16 +497,8 @@ fn prepare_wrapped_undelegate_msg(
         amount: Some(coin),
     };
 
-    let bytes = MsgWrappedUndelegate {
+    MsgWrappedUndelegate {
         msg: Some(undelegate_msg),
     }
-    .to_bytes()
-    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedUndelegate"))?;
-
-    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
-        type_url: "/babylon.epoching.v1.MsgWrappedUndelegate".to_string(),
-        value: Binary::from(bytes),
-    });
-
-    return Ok(msg);
+    .to_any()
 }

@@ -34,7 +34,7 @@ pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
     })
 }
 
-pub fn query_state(deps: Deps, env: Env) -> LstResult<State> {
+pub fn query_state(deps: Deps, env: &Env) -> LstResult<State> {
     query_actual_state(deps, env)
 }
 
