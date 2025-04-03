@@ -135,14 +135,17 @@ pub enum ExecuteMsg {
     /// This method is open to call to update the state of the contract like exchange rate, rewards.
     UpdateGlobalIndex {},
 
-    /// This method is used to process undelegations without calling the token contract. Batch is processed only if the epoch time has
+    /// This method is used to process undelegations without calling the token contract. Batch is processed only if the epoch time has passed
     ProcessUndelegations {},
+
+    /// This method is used to process the unstake requests that have already passed the unstaking period
+    ProcessWithdrawRequests {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     pub lst_exchange_rate: Decimal,
-    pub total_lst_token_amount: Uint128,
+    pub total_staked_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
     pub last_unbonded_time: u64,
@@ -156,11 +159,10 @@ impl State {
         requested_lst_token_amount: Uint128,
     ) {
         let actual_supply = total_issued_lst_token + requested_lst_token_amount;
-        if self.total_lst_token_amount.is_zero() || actual_supply.is_zero() {
+        if self.total_staked_amount.is_zero() || actual_supply.is_zero() {
             self.lst_exchange_rate = Decimal::one();
         } else {
-            self.lst_exchange_rate =
-                Decimal::from_ratio(self.total_lst_token_amount, actual_supply);
+            self.lst_exchange_rate = Decimal::from_ratio(self.total_staked_amount, actual_supply);
         }
     }
 }

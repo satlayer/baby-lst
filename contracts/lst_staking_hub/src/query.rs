@@ -52,11 +52,11 @@ pub fn query_withdrawable_unstaked(
     address: String,
 ) -> LstResult<WithdrawableUnstakedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
-    let historical_time = env.block.time.seconds() - params.unstaking_period;
+    let unstake_cutoff_time = env.block.time.seconds() - params.unstaking_period;
     let checked_addr = to_checked_address(deps, &address)?;
 
     Ok(WithdrawableUnstakedResponse {
-        withdrawable: query_get_finished_amount(deps.storage, checked_addr, historical_time)?,
+        withdrawable: query_get_finished_amount(deps.storage, checked_addr, unstake_cutoff_time)?,
     })
 }
 
@@ -88,7 +88,7 @@ pub fn query_unstake_requests_limitation(
 fn query_get_finished_amount(
     storage: &dyn Storage,
     address: Addr,
-    block_time: u64,
+    unstake_cutoff_time: u64,
 ) -> LstResult<Uint128> {
     let wait_list = UNSTAKE_WAIT_LIST
         .prefix(address)
@@ -103,8 +103,9 @@ fn query_get_finished_amount(
         .into_iter()
         .fold(Uint128::zero(), |acc, (batch_id, lst_amount)| {
             if let Ok(history) = read_unstake_history(storage, batch_id) {
-                if history.time < block_time {
-                    return acc + decimal_multiplication(lst_amount, history.lst_withdraw_rate);
+                if history.time < unstake_cutoff_time {
+                    return acc
+                        + decimal_multiplication(lst_amount, history.lst_applied_exchange_rate);
                 }
             }
             acc
