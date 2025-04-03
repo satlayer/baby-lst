@@ -21,7 +21,7 @@ use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};
 use crate::query::{
     query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
-    query_unstake_requests_limitation, query_withdrawable_unstaked,
+    query_unstake_requests_limit, query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
 use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
@@ -177,6 +177,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
         QueryMsg::UnstakeRequests { address } => {
             Ok(to_json_binary(&query_unstake_requests(deps, address)?)?)
         }
+        QueryMsg::UnstakeRequestsLimit {
+            address,
+            start_from,
+            limit,
+        } => Ok(to_json_binary(&query_unstake_requests_limit(
+            deps, address, start_from, limit,
+        )?)?),
         QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
             &query_unstake_requests_limitation(deps, start_from, limit)?,
         )?),
@@ -304,7 +311,7 @@ pub fn receive_cw20(
         .ok_or_else(|| ContractError::Hub(HubError::LstTokenNotSet))?;
 
     match from_json(&cw20_msg.msg)? {
-        Cw20HookMsg::UnStake {} => {
+        Cw20HookMsg::Unstake {} => {
             if info.sender == lst_token_addr {
                 execute_unstake(
                     deps,

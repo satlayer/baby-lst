@@ -73,10 +73,20 @@ pub enum QueryMsg {
         address: String,
     },
     /// Return all the unstaking requests for a user
-    #[returns(UnstakeRequestsResponse)]
+    #[returns(UnstakeRequestsResponses)]
     UnstakeRequests {
         /// Address of the user
         address: String,
+    },
+    /// Return the unstaking requests for a user in batches
+    #[returns(UnstakeRequestsResponses)]
+    UnstakeRequestsLimit {
+        /// Address of the user
+        address: String,
+        /// Starting index for the history
+        start_from: Option<u64>,
+        /// No of data to return per request
+        limit: Option<u32>,
     },
     /// Returns the unstaking requests history in batches
     #[returns(AllHistoryResponse)]
@@ -194,7 +204,7 @@ pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    UnStake {},
+    Unstake {},
 }
 
 /// Amount of unstaked tokens that can be withdrawn by user
@@ -208,15 +218,47 @@ pub struct WithdrawableUnstakedResponse {
 pub type UnstakeRequest = Vec<(u64, Uint128)>;
 
 #[cw_serde]
-pub struct UnstakeRequestsResponse {
+pub struct UserUnstakeRequestsResponse {
+    /// Batch id
+    pub batch_id: u64,
+    /// Amount of lst token unstaked by the user
+    pub lst_amount: Uint128,
+    /// Exchange rate of the lst token at the time of unstake
+    pub withdraw_exchange_rate: Decimal,
+    /// Exchange rate of the lst token at the time of withdrawal. If released is false, it would be same as withdraw_exchange_rate
+    pub applied_exchange_rate: Decimal,
+    /// Time at which the unstake request was made
+    pub time: u64,
+    /// Whether the unstake request is released to get updated withdraw rate
+    pub released: bool,
+}
+
+#[cw_serde]
+pub struct UnstakeRequestsResponses {
     /// Address of the user
     pub address: String,
-    /// Batch Id and Amount of token unstaked by the user
-    pub requests: UnstakeRequest,
+    /// Unstake request details for the user
+    pub requests: Vec<UserUnstakeRequestsResponse>,
+}
+
+#[cw_serde]
+pub struct UnstakeHistory {
+    /// Batch id of the unstake request
+    pub batch_id: u64,
+    /// Time at which the unstake request was made
+    pub time: u64,
+    /// Amount of lst token unstaked or burnt in the batch
+    pub lst_token_amount: Uint128,
+    /// Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
+    pub lst_applied_exchange_rate: Decimal,
+    /// Exchange rate of the lst token at the time of unstake/burning of lst token
+    pub lst_withdraw_rate: Decimal,
+    /// Whether the batch is processsed/released to get updated withdraw rate
+    pub released: bool,
 }
 
 #[cw_serde]
 pub struct AllHistoryResponse {
     /// History of unstaking requests
-    pub history: Vec<UnstakeRequestsResponse>,
+    pub history: Vec<UnstakeHistory>,
 }

@@ -1,13 +1,11 @@
 use crate::{constants::*, math::decimal_multiplication};
-use cosmwasm_std::{Addr, Decimal, Storage, Uint128};
+use cosmwasm_std::{Addr, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use lst_common::{
     errors::HubError,
-    hub::{Config, CurrentBatch, Parameters, State},
+    hub::{Config, CurrentBatch, Parameters, State, UnstakeHistory},
     types::LstResult,
 };
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
@@ -15,7 +13,7 @@ pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
 pub const STATE: Item<State> = Item::new(STATE_KEY);
 
 pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
-pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
+pub const UNSTAKE_HISTORY: Map<u64, UnstakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 
 #[derive(PartialEq)]
 pub enum StakeType {
@@ -29,23 +27,7 @@ pub enum UnstakeType {
     BurnFromFlow,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnStakeHistory {
-    /// Batch id of the unstake request
-    pub batch_id: u64,
-    /// Time at which the unstake request was made
-    pub time: u64,
-    /// Amount of lst token unstaked or burnt in the batch
-    pub lst_token_amount: Uint128,
-    /// Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
-    pub lst_applied_exchange_rate: Decimal,
-    /// Exchange rate of the lst token at the time of unstake/burning of lst token
-    pub lst_withdraw_rate: Decimal,
-    /// Whether the batch is processsed/released to get updated withdraw rate
-    pub released: bool,
-}
-
-pub fn read_unstake_history(storage: &dyn Storage, epoch_id: u64) -> LstResult<UnStakeHistory> {
+pub fn read_unstake_history(storage: &dyn Storage, epoch_id: u64) -> LstResult<UnstakeHistory> {
     UNSTAKE_HISTORY
         .may_load(storage, epoch_id)?
         .ok_or(lst_common::ContractError::Hub(

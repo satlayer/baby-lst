@@ -10,7 +10,7 @@ use lst_common::{
     babylon_msg::{CosmosAny, MsgWrappedUndelegate},
     delegation::calculate_undelegations,
     errors::HubError,
-    hub::{CurrentBatch, State},
+    hub::{CurrentBatch, State, UnstakeHistory},
     to_checked_address,
     types::{LstResult, ProtoCoin, ResponseType},
     validator::ValidatorResponse,
@@ -21,8 +21,8 @@ use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
-        UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnstakeType, CONFIG,
+        CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -210,7 +210,7 @@ fn process_undelegations_for_batch(
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
     // Store history for withdraw unstaked
-    let history = UnStakeHistory {
+    let history = UnstakeHistory {
         batch_id: current_batch.id,
         time: env.block.time.seconds(),
         lst_token_amount: current_batch.requested_lst_token_amount,
@@ -349,7 +349,7 @@ fn get_unprocessed_histories(
     storage: &dyn Storage,
     start_batch: u64,
     unstake_cutoff_time: u64,
-) -> LstResult<Vec<(u64, UnStakeHistory)>> {
+) -> LstResult<Vec<(u64, UnstakeHistory)>> {
     let mut histories = Vec::new();
     let mut batch_id = start_batch + 1;
 
@@ -375,7 +375,7 @@ fn get_unprocessed_histories(
 
 // Sums up actual unstaked amount using the burnt lst amount and withdraw rate at time of unstaking
 // After slashing, the amount and rate is updated
-fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnStakeHistory)>) -> Uint256 {
+fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnstakeHistory)>) -> Uint256 {
     let total_unstaked_amount = histories.iter().fold(Uint256::zero(), |acc, (_, history)| {
         let lst_burnt_amount = Uint256::from(history.lst_token_amount);
         let lst_historical_rate = Decimal256::from(history.lst_withdraw_rate);
