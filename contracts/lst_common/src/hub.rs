@@ -137,6 +137,9 @@ pub enum ExecuteMsg {
 
     /// This method is used to process undelegations without calling the token contract. Batch is processed only if the epoch time has passed
     ProcessUndelegations {},
+
+    /// This method is used to process the unstake requests that have already passed the unstaking period
+    ProcessWithdrawRequests {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]

@@ -277,6 +277,23 @@ fn pick_validator_for_undelegation(
     Ok(messages)
 }
 
+// This method is used to process the unstake requests that have already passed the unstaking period
+// Anyone can call this method to process the unstake requests
+pub fn execute_process_withdraw_requests(mut deps: DepsMut, env: Env) -> LstResult<Response> {
+    let params = PARAMETERS.load(deps.storage)?;
+    let unstake_cutoff_time = env.block.time.seconds() - params.unstaking_period;
+
+    // Get hub balance
+    let hub_balance = deps
+        .querier
+        .query_balance(&env.contract.address, &*params.staking_coin_denom)?
+        .amount;
+
+    process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
+
+    Ok(Response::new())
+}
+
 // This is designed for an accurate unstaked amount calculation. Execute while processing withdraw_unstaked
 // Handles the calculation and update of withdrawal rates after slashing events
 fn process_withdraw_rate(
