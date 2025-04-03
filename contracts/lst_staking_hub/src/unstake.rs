@@ -281,7 +281,7 @@ fn pick_validator_for_undelegation(
 fn get_unprocessed_histories(
     storage: &dyn Storage,
     start_batch: u64,
-    historical_time: u64,
+    unstake_cutoff_time: u64,
 ) -> LstResult<Vec<(u64, UnStakeHistory)>> {
     let mut histories = Vec::new();
     let mut i = start_batch + 1;
@@ -289,7 +289,7 @@ fn get_unprocessed_histories(
     loop {
         match read_unstake_history(storage, i) {
             Ok(h) => {
-                if h.time > historical_time {
+                if h.time > unstake_cutoff_time {
                     break;
                 }
                 if !h.released {
@@ -310,25 +310,24 @@ fn get_unprocessed_histories(
 // Handles the calculation and update of withdrawal rates after slashing events
 fn process_withdraw_rate(
     deps: &mut DepsMut,
-    historical_time: u64,
+    unstake_cutoff_time: u64,
     hub_balance: Uint128,
 ) -> LstResult<()> {
     let mut state = STATE.load(deps.storage)?;
 
     // Get all unprocessed histories
-    let histories =
-        get_unprocessed_histories(deps.storage, state.last_processed_batch, historical_time)?;
+    let histories = get_unprocessed_histories(
+        deps.storage,
+        state.last_processed_batch,
+        unstake_cutoff_time,
+    )?;
 
     if histories.is_empty() {
         return Ok(());
     }
 
     // Calculate total unstaked amount and slashing
-    let (lst_total_unstaked_amount, _) = calculate_newly_added_unstaked_amount(
-        deps.storage,
-        state.last_processed_batch,
-        historical_time,
-    );
+    let lst_total_unstaked_amount = calculate_newly_added_unstaked_amount(histories.clone());
 
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     let actual_unstaked_amount = balance_change.0;
@@ -347,10 +346,10 @@ fn process_withdraw_rate(
             lst_slashed_amount,
         );
 
-        let mut history_for_i = history;
-        history_for_i.lst_withdraw_rate = lst_new_withdraw_rate;
-        history_for_i.released = true;
-        UNSTAKE_HISTORY.save(deps.storage, batch_id, &history_for_i)?;
+        let mut unstake_history_batch = history;
+        unstake_history_batch.lst_withdraw_rate = lst_new_withdraw_rate;
+        unstake_history_batch.released = true;
+        UNSTAKE_HISTORY.save(deps.storage, batch_id, &unstake_history_batch)?;
         state.last_processed_batch = batch_id;
     }
 
@@ -358,14 +357,7 @@ fn process_withdraw_rate(
     Ok(())
 }
 
-fn calculate_newly_added_unstaked_amount(
-    storage: &dyn Storage,
-    last_processed_batch: u64,
-    historical_time: u64,
-) -> (Uint256, u64) {
-    let histories = get_unprocessed_histories(storage, last_processed_batch, historical_time)
-        .unwrap_or_default();
-
+fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnStakeHistory)>) -> Uint256 {
     let lst_total_unstaked_amount = histories.iter().fold(Uint256::zero(), |acc, (_, history)| {
         let lst_burnt_amount = Uint256::from(history.lst_token_amount);
         let lst_historical_rate = Decimal256::from(history.lst_withdraw_rate);
@@ -373,7 +365,7 @@ fn calculate_newly_added_unstaked_amount(
         acc + lst_unstaked_amount
     });
 
-    (lst_total_unstaked_amount, histories.len() as u64)
+    lst_total_unstaked_amount
 }
 
 fn calculate_new_withdraw_rate(
@@ -438,7 +430,7 @@ pub fn execute_withdraw_unstaked(
     let staking_coin_denom = params.staking_coin_denom;
 
     // unstake before this time are completed
-    let historical_time = env.block.time.seconds() - unstaking_period;
+    let unstake_cutoff_time = env.block.time.seconds() - unstaking_period;
 
     // query hub balance for process withdraw rate
     let hub_balance = deps
@@ -446,7 +438,7 @@ pub fn execute_withdraw_unstaked(
         .query_balance(&contract_address, &*staking_coin_denom)?
         .amount;
 
-    process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
+    process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
 
     let (withdraw_amount, deprecated_batches) =
         get_finished_amount(deps.storage, sender_human.clone())?;
