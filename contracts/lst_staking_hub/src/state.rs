@@ -31,17 +31,17 @@ pub enum UnstakeType {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnStakeHistory {
-    // Batch id of the unstake request
+    /// Batch id of the unstake request
     pub batch_id: u64,
-    // Time at which the unstake request was made
+    /// Time at which the unstake request was made
     pub time: u64,
-    // Amount of lst token unstaked or burnt in the batch
+    /// Amount of lst token unstaked or burnt in the batch
     pub lst_token_amount: Uint128,
-    // Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
+    /// Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
     pub lst_applied_exchange_rate: Decimal,
-    // Exchange rate of the lst token at the time of unstake/burning of lst token
+    /// Exchange rate of the lst token at the time of unstake/burning of lst token
     pub lst_withdraw_rate: Decimal,
-    // Whether the batch is processsed/released to get updated withdraw rate
+    /// Whether the batch is processsed/released to get updated withdraw rate
     pub released: bool,
 }
 
