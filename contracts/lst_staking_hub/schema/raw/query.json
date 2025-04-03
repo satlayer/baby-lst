@@ -119,6 +119,47 @@
       "additionalProperties": false
     },
     {
+      "description": "Return the unstaking requests for a user in batches",
+      "type": "object",
+      "required": [
+        "unstake_requests_limit"
+      ],
+      "properties": {
+        "unstake_requests_limit": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "description": "Address of the user",
+              "type": "string"
+            },
+            "limit": {
+              "description": "No of data to return per request",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_from": {
+              "description": "Starting index for the history",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Returns the unstaking requests history in batches",
       "type": "object",
       "required": [
