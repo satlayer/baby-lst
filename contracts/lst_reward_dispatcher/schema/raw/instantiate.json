@@ -4,12 +4,24 @@
   "description": "Instantiate the reward contract",
   "type": "object",
   "required": [
+    "fee_addr",
+    "fee_rate",
     "hub_contract",
-    "reward_denom",
-    "satlayer_fee_addr",
-    "satlayer_fee_rate"
+    "reward_denom"
   ],
   "properties": {
+    "fee_addr": {
+      "description": "Address to receive the fee from the rewards",
+      "type": "string"
+    },
+    "fee_rate": {
+      "description": "Rate at which fee is taken from rewards",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
+    },
     "hub_contract": {
       "description": "Address of the staking hub contract",
       "type": "string"
@@ -17,18 +29,6 @@
     "reward_denom": {
       "description": "Denom of the staking reward token",
       "type": "string"
-    },
-    "satlayer_fee_addr": {
-      "description": "Address to receive the fee from the rewards",
-      "type": "string"
-    },
-    "satlayer_fee_rate": {
-      "description": "Rate at which fee is taken from rewards",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
     }
   },
   "additionalProperties": false,

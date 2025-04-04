@@ -12,6 +12,24 @@
         "update_config": {
           "type": "object",
           "properties": {
+            "fee_addr": {
+              "description": "Address to receive the fee from the rewards",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fee_rate": {
+              "description": "Rate at which fee is taken from rewards",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "hub_contract": {
               "description": "Address of the hub contract",
               "type": [
@@ -24,24 +42,6 @@
               "type": [
                 "string",
                 "null"
-              ]
-            },
-            "satlayer_fee_addr": {
-              "description": "Address to receive the fee from the rewards",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "satlayer_fee_rate": {
-              "description": "Rate at which fee is taken from rewards",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
               ]
             }
           },

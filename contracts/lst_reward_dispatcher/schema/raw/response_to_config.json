@@ -3,13 +3,19 @@
   "title": "Config",
   "type": "object",
   "required": [
+    "fee_addr",
+    "fee_rate",
     "hub_contract",
     "owner",
-    "reward_denom",
-    "satlayer_fee_addr",
-    "satlayer_fee_rate"
+    "reward_denom"
   ],
   "properties": {
+    "fee_addr": {
+      "$ref": "#/definitions/Addr"
+    },
+    "fee_rate": {
+      "$ref": "#/definitions/Decimal"
+    },
     "hub_contract": {
       "$ref": "#/definitions/Addr"
     },
@@ -18,12 +24,6 @@
     },
     "reward_denom": {
       "type": "string"
-    },
-    "satlayer_fee_addr": {
-      "$ref": "#/definitions/Addr"
-    },
-    "satlayer_fee_rate": {
-      "$ref": "#/definitions/Decimal"
     }
   },
   "additionalProperties": false,
