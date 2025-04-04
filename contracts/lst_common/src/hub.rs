@@ -109,6 +109,10 @@ pub enum ExecuteMsg {
     },
     /// User can withdraw the amount after the unstaking process has been completed.
     WithdrawUnstaked {},
+    /// User can withdraw the amount after the unstaking process has been completed for specific batch IDs.
+    WithdrawUnstakedForBatches {
+        batch_ids: Vec<u64>,
+    },
     /// Admin can update these parameters for configuration of the contract.
     UpdateConfig {
         /// Owner of the contract

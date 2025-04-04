@@ -43,9 +43,6 @@ pub fn get_finished_amount(
     storage: &dyn Storage,
     sender_addr: Addr,
 ) -> LstResult<(Uint128, Vec<u64>)> {
-    let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let mut deprecated_batches: Vec<u64> = vec![];
-
     // Get all unstake wait list entries for this user
     let wait_list: Vec<(u64, Uint128)> = UNSTAKE_WAIT_LIST
         .prefix(sender_addr)
@@ -55,6 +52,40 @@ pub fn get_finished_amount(
             Ok((batch_id, lst_amount))
         })
         .collect::<LstResult<Vec<_>>>()?;
+
+    process_finished_amount(storage, wait_list)
+}
+
+// Return requested unstaked amount for specific batch IDs.
+// This needs to be called after process withdraw rate function
+// If the batch is released, this will return user's requested amount
+// proportional to new withdraw rate
+pub fn get_finished_amount_for_batches(
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    batch_ids: Vec<u64>,
+) -> LstResult<(Uint128, Vec<u64>)> {
+    // Get wait list entries for specified batch IDs
+    let wait_list: Vec<(u64, Uint128)> = batch_ids
+        .iter()
+        .filter_map(|&batch_id| {
+            UNSTAKE_WAIT_LIST
+                .load(storage, (sender_addr.clone(), batch_id))
+                .ok()
+                .map(|lst_amount| (batch_id, lst_amount))
+        })
+        .collect();
+
+    process_finished_amount(storage, wait_list)
+}
+
+// Common processing logic for calculating finished amounts
+fn process_finished_amount(
+    storage: &dyn Storage,
+    wait_list: Vec<(u64, Uint128)>,
+) -> LstResult<(Uint128, Vec<u64>)> {
+    let mut withdrawable_amount: Uint128 = Uint128::zero();
+    let mut deprecated_batches: Vec<u64> = vec![];
 
     // Process each wait list entry
     for (batch_id, lst_amount) in wait_list {

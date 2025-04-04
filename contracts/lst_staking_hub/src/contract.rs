@@ -30,7 +30,7 @@ use crate::stake::execute_stake;
 use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use crate::unstake::{
     execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,
-    execute_withdraw_unstaked,
+    execute_withdraw_unstaked, execute_withdraw_unstaked_for_batches,
 };
 use cw20_base::{msg::QueryMsg as Cw20QueryMsg, state::TokenInfo};
 use lst_common::rewards_msg::ExecuteMsg::DispatchRewards;
@@ -144,6 +144,9 @@ pub fn execute(
             UnstakeType::BurnFromFlow,
         ),
         ExecuteMsg::WithdrawUnstaked {} => execute_withdraw_unstaked(deps, env, info),
+        ExecuteMsg::WithdrawUnstakedForBatches { batch_ids } => {
+            execute_withdraw_unstaked_for_batches(deps, env, info, batch_ids)
+        }
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
             pause,

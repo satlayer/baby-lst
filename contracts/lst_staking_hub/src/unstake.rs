@@ -21,8 +21,9 @@ use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnstakeType, CONFIG,
-        CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        get_finished_amount, get_finished_amount_for_batches, read_unstake_history,
+        remove_unstake_wait_list, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+        UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -439,9 +440,31 @@ fn calculate_new_withdraw_rate(
 // This method allows users to withdraw their unstaked tokens after the unstaking period has elapsed. It handles the calculation of
 // withdrawable amounts, updates the state, and send the tokens to the user.
 pub fn execute_withdraw_unstaked(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> LstResult<Response<ResponseType>> {
+    execute_withdraw_unstaked_impl(deps, env, info, None)
+}
+
+// Process the withdrawal of unstaked tokens by users for specific batch IDs
+// This method allows users to withdraw their unstaked tokens after the unstaking period has elapsed for specific batches.
+// It handles the calculation of withdrawable amounts, updates the state, and send the tokens to the user.
+pub fn execute_withdraw_unstaked_for_batches(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    batch_ids: Vec<u64>,
+) -> LstResult<Response<ResponseType>> {
+    execute_withdraw_unstaked_impl(deps, env, info, Some(batch_ids))
+}
+
+// Internal implementation of withdraw unstaked functionality
+fn execute_withdraw_unstaked_impl(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    batch_ids: Option<Vec<u64>>,
 ) -> LstResult<Response<ResponseType>> {
     // Early parameter loading
     let params = PARAMETERS.load(deps.storage)?;
@@ -457,8 +480,10 @@ pub fn execute_withdraw_unstaked(
     process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
 
     // Get withdrawable amount after rates are updated
-    let (withdraw_amount, deprecated_batches) =
-        get_finished_amount(deps.storage, info.sender.clone())?;
+    let (withdraw_amount, deprecated_batches) = match batch_ids {
+        Some(ids) => get_finished_amount_for_batches(deps.storage, info.sender.clone(), ids)?,
+        None => get_finished_amount(deps.storage, info.sender.clone())?,
+    };
 
     // Early validation
     if withdraw_amount.is_zero() {
