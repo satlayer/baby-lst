@@ -18,3 +18,5 @@ pub const OLD_RATE: &str = "old_rate";
 pub const NEW_RATE: &str = "new_rate";
 pub const OLD_AMOUNT: &str = "old_amount";
 pub const NEW_AMOUNT: &str = "new_amount";
+
+pub const PENDING_DELEGATION_KEY: &str = "pending_delegation";

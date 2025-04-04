@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use cw20::Cw20ReceiveMsg;
+use lst_common::hub::PendingDelegation;
 use lst_common::types::{LstResult, ProtoCoin, ResponseType, StdCoin};
 use lst_common::ContractError;
 use lst_common::{
@@ -23,12 +24,14 @@ use crate::constants::{
     OLD_AMOUNT, OLD_RATE, TOTAL_STAKED_AMOUNT_UPDATED,
 };
 use crate::query::{
-    query_config, query_current_batch, query_parameters, query_state, query_unstake_requests,
-    query_unstake_requests_limit, query_unstake_requests_limitation, query_withdrawable_unstaked,
+    query_config, query_current_batch, query_parameters, query_pending_delegation, query_state,
+    query_unstake_requests, query_unstake_requests_limit, query_unstake_requests_limitation,
+    query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
 use crate::state::{
-    update_state, StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+    get_pending_delegation_amount, update_state, StakeType, UnstakeType, CONFIG, CURRENT_BATCH,
+    PARAMETERS, PENDING_DELEGATION, STATE,
 };
 use crate::unstake::{
     execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,
@@ -109,6 +112,15 @@ pub fn instantiate(
         requested_lst_token_amount: Default::default(),
     };
     CURRENT_BATCH.save(deps.storage, &batch)?;
+
+    // Instantiate Pending Delegation
+    let pending_delegation = PendingDelegation {
+        staking_epoch_start_block_height: msg.staking_epoch_start_block_height,
+        pending_staking_amount: Uint128::zero(),
+        pending_unstaking_amount: Uint128::zero(),
+        staking_epoch_length_blocks: msg.staking_epoch_length_blocks,
+    };
+    PENDING_DELEGATION.save(deps.storage, &pending_delegation)?;
 
     Ok(Response::new().add_events(events))
 }
@@ -206,6 +218,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
             &query_unstake_requests_limitation(deps, start_from, limit)?,
         )?),
+        QueryMsg::PendingDelegation {} => Ok(to_json_binary(&query_pending_delegation(deps)?)?),
     }
 }
 
@@ -268,14 +281,20 @@ pub fn query_actual_state<'a>(deps: Deps, env: &Env, state: &'a mut State) -> Ls
         }
     }
 
-    // Check the amount that contract thinks is staked
-    let state_total_staked = state.total_staked_amount;
+    // get the pending delegation amount
+    let (pending_staked_amount, pending_unstaked_amount) =
+        get_pending_delegation_amount(deps, env)?;
+
+    // Check the amount that contract thinks is staked, pending amount should not be included as we don't get that in the delegation query
+    let state_total_staked =
+        state.total_staked_amount - pending_staked_amount + pending_unstaked_amount;
     if state_total_staked.is_zero() {
         return Ok(state);
     }
 
     if state_total_staked.u128() > actual_total_staked.u128() {
-        state.total_staked_amount = actual_total_staked;
+        state.total_staked_amount =
+            actual_total_staked + pending_staked_amount - pending_unstaked_amount;
     }
 
     // Need total issued for updating the exchange rate

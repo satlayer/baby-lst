@@ -2,8 +2,8 @@ use cosmwasm_std::{Addr, Deps, Env, Storage, Uint128};
 use cw_storage_plus::Bound;
 use lst_common::{
     hub::{
-        AllHistoryResponse, Config, ConfigResponse, CurrentBatch, Parameters, State,
-        UnstakeHistory, UnstakeRequestsResponses, UserUnstakeRequestsResponse,
+        AllHistoryResponse, Config, ConfigResponse, CurrentBatch, Parameters, PendingDelegation,
+        State, UnstakeHistory, UnstakeRequestsResponses, UserUnstakeRequestsResponse,
         WithdrawableUnstakedResponse,
     },
     to_checked_address,
@@ -14,8 +14,8 @@ use crate::{
     contract::query_actual_state,
     math::decimal_multiplication,
     state::{
-        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
-        UNSTAKE_WAIT_LIST,
+        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, PENDING_DELEGATION, STATE,
+        UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -33,6 +33,10 @@ pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
         validators_registry_contract: validators_registry_contract.map(|addr| addr.to_string()),
         lst_token: lst_token.map(|addr| addr.to_string()),
     })
+}
+
+pub fn query_pending_delegation(deps: Deps) -> LstResult<PendingDelegation> {
+    Ok(PENDING_DELEGATION.load(deps.storage)?)
 }
 
 pub fn query_state(deps: Deps, env: &Env) -> LstResult<State> {

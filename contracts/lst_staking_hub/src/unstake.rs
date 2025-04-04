@@ -22,8 +22,8 @@ use crate::{
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
         get_finished_amount, get_finished_amount_for_batches, read_unstake_history,
-        remove_unstake_wait_list, update_state, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS,
-        STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        remove_unstake_wait_list, update_pending_delegation_amount, update_state, UnstakeType,
+        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -219,6 +219,7 @@ fn process_undelegations_for_batch(
         .total_staked_amount
         .checked_sub(unstaked_amount_in_batch)
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
+    update_pending_delegation_amount(deps, &env, None, Some(unstaked_amount_in_batch))?;
 
     // Store history for withdraw unstaked
     let history = UnstakeHistory {
