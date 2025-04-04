@@ -9,9 +9,9 @@ pub struct InstantiateMsg {
     /// Denom of the staking reward token
     pub reward_denom: String,
     /// Address to receive the fee from the rewards
-    pub satlayer_fee_addr: String,
+    pub fee_addr: String,
     /// Rate at which fee is taken from rewards
-    pub satlayer_fee_rate: Decimal,
+    pub fee_rate: Decimal,
 }
 
 #[cw_serde]
@@ -23,9 +23,9 @@ pub enum ExecuteMsg {
         /// Address of the hub contract
         hub_contract: Option<String>,
         /// Address to receive the fee from the rewards
-        satlayer_fee_addr: Option<String>,
+        fee_addr: Option<String>,
         /// Rate at which fee is taken from rewards
-        satlayer_fee_rate: Option<Decimal>,
+        fee_rate: Option<Decimal>,
     },
     /// Dispatch the rewards to the staking hub contract and stake those rewards
     DispatchRewards {},
@@ -44,6 +44,6 @@ pub struct Config {
     pub owner: Addr,
     pub hub_contract: Addr,
     pub reward_denom: String,
-    pub satlayer_fee_addr: Addr,
-    pub satlayer_fee_rate: Decimal,
+    pub fee_addr: Addr,
+    pub fee_rate: Decimal,
 }
