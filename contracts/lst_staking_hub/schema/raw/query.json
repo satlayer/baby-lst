@@ -192,6 +192,20 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Returns the pending delegation amount",
+      "type": "object",
+      "required": [
+        "pending_delegation"
+      ],
+      "properties": {
+        "pending_delegation": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
