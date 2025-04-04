@@ -8,7 +8,7 @@
     "last_unbonded_time",
     "lst_exchange_rate",
     "prev_hub_balance",
-    "total_lst_token_amount"
+    "total_staked_amount"
   ],
   "properties": {
     "last_index_modification": {
@@ -32,7 +32,7 @@
     "prev_hub_balance": {
       "$ref": "#/definitions/Uint128"
     },
-    "total_lst_token_amount": {
+    "total_staked_amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

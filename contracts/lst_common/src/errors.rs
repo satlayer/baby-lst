@@ -92,6 +92,12 @@ pub enum HubError {
     #[error("Epoch length must be less than unstaking period")]
     InvalidPeriods,
 
+    #[error("User balance less than the amount to unstake")]
+    InsufficientFunds,
+
+    #[error("User allowance to hub contractless than the amount to unstake")]
+    InsufficientAllowance,
+
     #[error("LST token already set")]
     LstTokenAlreadySet,
 }

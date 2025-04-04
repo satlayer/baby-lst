@@ -1,18 +1,15 @@
-use cosmos_sdk_proto::{
-    cosmos::base::v1beta1::Coin as ProtoCoin, cosmos::staking::v1beta1::MsgDelegate,
-    traits::MessageExt,
-};
+use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate;
 use cosmwasm_std::{
-    attr, to_json_binary, AnyMsg, Binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest,
-    Response, StdError, Uint128, WasmMsg, WasmQuery,
+    attr, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
-    babylon::epoching::v1::MsgWrappedDelegate,
+    babylon_msg::{CosmosAny, MsgWrappedDelegate},
     calculate_delegations,
     errors::HubError,
-    types::LstResult,
+    types::{LstResult, ProtoCoin, ResponseType},
     validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, ValidatorError,
 };
@@ -28,7 +25,7 @@ pub fn execute_stake(
     env: Env,
     info: MessageInfo,
     stake_type: StakeType,
-) -> LstResult<Response> {
+) -> LstResult<Response<ResponseType>> {
     let params = PARAMETERS.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
@@ -58,7 +55,7 @@ pub fn execute_stake(
         .ok_or(HubError::InvalidAmount)?;
 
     // check slashing and get the latest exchange rate
-    let state = check_slashing(&mut deps, env.clone())?;
+    let state = check_slashing(&mut deps, &env)?;
 
     let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap_or_default();
 
@@ -73,11 +70,11 @@ pub fn execute_stake(
     STATE.update(deps.storage, |mut prev_state| -> LstResult<_> {
         match stake_type {
             StakeType::LSTMint => {
-                prev_state.total_lst_token_amount += payment.amount;
+                prev_state.total_staked_amount += payment.amount;
                 Ok(prev_state)
             }
             StakeType::StakeRewards => {
-                prev_state.total_lst_token_amount += payment.amount;
+                prev_state.total_staked_amount += payment.amount;
                 prev_state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
                 Ok(prev_state)
             }
@@ -112,7 +109,7 @@ pub fn execute_stake(
             delegations[i].to_string(),
             env.contract.address.to_string(),
             validators[i].address.to_string(),
-        )?;
+        );
 
         external_call_msgs.push(msg);
     }
@@ -160,7 +157,7 @@ fn prepare_wrapped_delegate_msg(
     amount: String,
     delegator_address: String,
     validator_address: String,
-) -> LstResult<CosmosMsg> {
+) -> CosmosMsg {
     let coin = ProtoCoin { denom, amount };
 
     let delegate_msg = MsgDelegate {
@@ -169,16 +166,8 @@ fn prepare_wrapped_delegate_msg(
         amount: Some(coin),
     };
 
-    let bytes = MsgWrappedDelegate {
+    MsgWrappedDelegate {
         msg: Some(delegate_msg),
     }
-    .to_bytes()
-    .map_err(|_| StdError::generic_err("Failed to serialize MsgWrappedDelegate"))?;
-
-    let msg: CosmosMsg = CosmosMsg::Any(AnyMsg {
-        type_url: "/babylon.epoching.v1.MsgWrappedDelegate".to_string(),
-        value: Binary::from(bytes),
-    });
-
-    return Ok(msg);
+    .to_any()
 }
