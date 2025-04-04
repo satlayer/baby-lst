@@ -75,6 +75,7 @@ pub fn execute_stake(
     match stake_type {
         StakeType::LSTMint => {
             state.total_staked_amount += payment.amount;
+            state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
         }
         StakeType::StakeRewards => {
             state.total_staked_amount += payment.amount;
