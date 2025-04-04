@@ -168,11 +168,12 @@ impl State {
         total_issued_lst_token: Uint128,
         requested_lst_token_amount: Uint128,
     ) {
-        let actual_supply = total_issued_lst_token + requested_lst_token_amount;
-        if self.total_staked_amount.is_zero() || actual_supply.is_zero() {
+        let total_token_supply = total_issued_lst_token + requested_lst_token_amount;
+        if self.total_staked_amount.is_zero() || total_token_supply.is_zero() {
             self.lst_exchange_rate = Decimal::one();
         } else {
-            self.lst_exchange_rate = Decimal::from_ratio(self.total_staked_amount, actual_supply);
+            self.lst_exchange_rate =
+                Decimal::from_ratio(self.total_staked_amount, total_token_supply);
         }
     }
 }

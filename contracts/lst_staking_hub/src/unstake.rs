@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
     attr, coins, to_json_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DecimalRangeExceeded,
-    DepsMut, Env, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
+    DepsMut, Env, Event, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -42,7 +42,7 @@ pub(crate) fn execute_unstake(
     update_unstake_batch_wait_list(&mut deps, &mut current_batch, sender.clone(), amount)?;
 
     // Check if unstake batch epoch has completed. If completed, returns undelegation messages
-    let mut messages =
+    let (mut messages, events) =
         check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
 
     // send burn message to the token contract
@@ -88,12 +88,15 @@ pub(crate) fn execute_unstake(
         funds: vec![],
     }));
 
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "burn"),
-        attr("from", sender),
-        attr("burnt_amount", amount),
-        attr("unstaked_amount", amount),
-    ]);
+    let res = Response::new()
+        .add_messages(messages)
+        .add_events(events)
+        .add_attributes(vec![
+            attr("action", "burn"),
+            attr("from", sender),
+            attr("burnt_amount", amount),
+            attr("unstaked_amount", amount),
+        ]);
 
     Ok(res)
 }
@@ -104,13 +107,13 @@ fn check_for_unstake_batch_epoch_completion(
     deps: &mut DepsMut,
     env: &Env,
     current_batch: &mut CurrentBatch,
-) -> LstResult<Vec<CosmosMsg>> {
+) -> LstResult<(Vec<CosmosMsg>, Vec<Event>)> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
 
     // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(deps, &env)?;
+    let (events, mut state) = check_slashing(deps, &env)?;
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -130,7 +133,7 @@ fn check_for_unstake_batch_epoch_completion(
     // Store state's new exchange rate
     STATE.save(deps.storage, &state)?;
 
-    Ok(messages)
+    Ok((messages, events))
 }
 
 // Provides a way to manually trigger the processing of unstaking requests
@@ -140,10 +143,12 @@ pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<R
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
-    let messages = check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
+    let (messages, events) =
+        check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
 
     let res = Response::new()
         .add_messages(messages)
+        .add_events(events)
         .add_attributes(vec![attr(
             "process undelegations",
             current_batch.id.to_string(),

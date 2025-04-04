@@ -55,7 +55,7 @@ pub fn execute_stake(
         .ok_or(HubError::InvalidAmount)?;
 
     // check slashing and get the latest exchange rate
-    let state = check_slashing(&mut deps, &env)?;
+    let (events, state) = check_slashing(&mut deps, &env)?;
 
     let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap_or_default();
 
@@ -118,6 +118,7 @@ pub fn execute_stake(
     if stake_type == StakeType::StakeRewards {
         let res = Response::new()
             .add_messages(external_call_msgs)
+            .add_events(events)
             .add_attributes(vec![
                 attr("action", "stake_rewards"),
                 attr("from", sender.clone()),
@@ -142,6 +143,7 @@ pub fn execute_stake(
 
     let res = Response::new()
         .add_messages(external_call_msgs)
+        .add_events(events)
         .add_attributes(vec![
             attr("action", "mint"),
             attr("from", sender.clone()),

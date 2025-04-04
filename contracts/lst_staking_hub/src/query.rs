@@ -14,7 +14,8 @@ use crate::{
     contract::query_actual_state,
     math::decimal_multiplication,
     state::{
-        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
+        UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -35,7 +36,9 @@ pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
 }
 
 pub fn query_state(deps: Deps, env: &Env) -> LstResult<State> {
-    query_actual_state(deps, env)
+    let mut state = STATE.load(deps.storage)?;
+    query_actual_state(deps, env, &mut state)?;
+    Ok(state)
 }
 
 pub fn query_current_batch(deps: Deps) -> LstResult<CurrentBatch> {
