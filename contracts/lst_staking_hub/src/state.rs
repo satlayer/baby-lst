@@ -1,13 +1,11 @@
 use crate::{constants::*, math::decimal_multiplication};
-use cosmwasm_std::{Addr, Decimal, Storage, Uint128};
+use cosmwasm_std::{Addr, Event, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use lst_common::{
     errors::HubError,
-    hub::{Config, CurrentBatch, Parameters, State},
+    hub::{Config, CurrentBatch, Parameters, State, UnstakeHistory},
     types::LstResult,
 };
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
@@ -15,7 +13,7 @@ pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
 pub const STATE: Item<State> = Item::new(STATE_KEY);
 
 pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
-pub const UNSTAKE_HISTORY: Map<u64, UnStakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
+pub const UNSTAKE_HISTORY: Map<u64, UnstakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 
 #[derive(PartialEq)]
 pub enum StakeType {
@@ -29,23 +27,7 @@ pub enum UnstakeType {
     BurnFromFlow,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnStakeHistory {
-    /// Batch id of the unstake request
-    pub batch_id: u64,
-    /// Time at which the unstake request was made
-    pub time: u64,
-    /// Amount of lst token unstaked or burnt in the batch
-    pub lst_token_amount: Uint128,
-    /// Exchange rate of the lst token at the time of withdrawal/slashing is applied to this rate
-    pub lst_applied_exchange_rate: Decimal,
-    /// Exchange rate of the lst token at the time of unstake/burning of lst token
-    pub lst_withdraw_rate: Decimal,
-    /// Whether the batch is processsed/released to get updated withdraw rate
-    pub released: bool,
-}
-
-pub fn read_unstake_history(storage: &dyn Storage, epoch_id: u64) -> LstResult<UnStakeHistory> {
+pub fn read_unstake_history(storage: &dyn Storage, epoch_id: u64) -> LstResult<UnstakeHistory> {
     UNSTAKE_HISTORY
         .may_load(storage, epoch_id)?
         .ok_or(lst_common::ContractError::Hub(
@@ -61,9 +43,6 @@ pub fn get_finished_amount(
     storage: &dyn Storage,
     sender_addr: Addr,
 ) -> LstResult<(Uint128, Vec<u64>)> {
-    let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let mut deprecated_batches: Vec<u64> = vec![];
-
     // Get all unstake wait list entries for this user
     let wait_list: Vec<(u64, Uint128)> = UNSTAKE_WAIT_LIST
         .prefix(sender_addr)
@@ -73,6 +52,40 @@ pub fn get_finished_amount(
             Ok((batch_id, lst_amount))
         })
         .collect::<LstResult<Vec<_>>>()?;
+
+    process_finished_amount(storage, wait_list)
+}
+
+// Return requested unstaked amount for specific batch IDs.
+// This needs to be called after process withdraw rate function
+// If the batch is released, this will return user's requested amount
+// proportional to new withdraw rate
+pub fn get_finished_amount_for_batches(
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    batch_ids: Vec<u64>,
+) -> LstResult<(Uint128, Vec<u64>)> {
+    // Get wait list entries for specified batch IDs
+    let wait_list: Vec<(u64, Uint128)> = batch_ids
+        .iter()
+        .filter_map(|&batch_id| {
+            UNSTAKE_WAIT_LIST
+                .load(storage, (sender_addr.clone(), batch_id))
+                .ok()
+                .map(|lst_amount| (batch_id, lst_amount))
+        })
+        .collect();
+
+    process_finished_amount(storage, wait_list)
+}
+
+// Common processing logic for calculating finished amounts
+fn process_finished_amount(
+    storage: &dyn Storage,
+    wait_list: Vec<(u64, Uint128)>,
+) -> LstResult<(Uint128, Vec<u64>)> {
+    let mut withdrawable_amount: Uint128 = Uint128::zero();
+    let mut deprecated_batches: Vec<u64> = vec![];
 
     // Process each wait list entry
     for (batch_id, lst_amount) in wait_list {
@@ -103,4 +116,25 @@ pub fn remove_unstake_wait_list(
         UNSTAKE_WAIT_LIST.remove(storage, (sender_addr.clone(), batch_id));
     }
     Ok(())
+}
+
+// Update state
+pub fn update_state(
+    storage: &mut dyn Storage,
+    old_state: State,
+    new_state: State,
+) -> LstResult<Vec<Event>> {
+    let mut events: Vec<Event> = vec![];
+    STATE.save(storage, &new_state)?;
+    events.push(
+        Event::new(LST_EXCHANGE_RATE_UPDATED)
+            .add_attribute(OLD_RATE, old_state.lst_exchange_rate.to_string())
+            .add_attribute(NEW_RATE, new_state.lst_exchange_rate.to_string()),
+    );
+    events.push(
+        Event::new(TOTAL_STAKED_AMOUNT_UPDATED)
+            .add_attribute(OLD_AMOUNT, old_state.total_staked_amount.to_string())
+            .add_attribute(NEW_AMOUNT, new_state.total_staked_amount.to_string()),
+    );
+    Ok(events)
 }

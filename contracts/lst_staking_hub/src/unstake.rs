@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
     attr, coins, to_json_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DecimalRangeExceeded,
-    DepsMut, Env, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
+    DepsMut, Env, Event, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -10,7 +10,7 @@ use lst_common::{
     babylon_msg::{CosmosAny, MsgWrappedUndelegate},
     delegation::calculate_undelegations,
     errors::HubError,
-    hub::{CurrentBatch, State},
+    hub::{CurrentBatch, State, UnstakeHistory},
     to_checked_address,
     types::{LstResult, ProtoCoin, ResponseType},
     validator::ValidatorResponse,
@@ -21,8 +21,9 @@ use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, read_unstake_history, remove_unstake_wait_list, UnStakeHistory,
-        UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        get_finished_amount, get_finished_amount_for_batches, read_unstake_history,
+        remove_unstake_wait_list, update_state, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS,
+        STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -42,7 +43,7 @@ pub(crate) fn execute_unstake(
     update_unstake_batch_wait_list(&mut deps, &mut current_batch, sender.clone(), amount)?;
 
     // Check if unstake batch epoch has completed. If completed, returns undelegation messages
-    let mut messages =
+    let (mut messages, events) =
         check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
 
     // send burn message to the token contract
@@ -88,12 +89,15 @@ pub(crate) fn execute_unstake(
         funds: vec![],
     }));
 
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "burn"),
-        attr("from", sender),
-        attr("burnt_amount", amount),
-        attr("unstaked_amount", amount),
-    ]);
+    let res = Response::new()
+        .add_messages(messages)
+        .add_events(events)
+        .add_attributes(vec![
+            attr("action", "burn"),
+            attr("from", sender),
+            attr("burnt_amount", amount),
+            attr("unstaked_amount", amount),
+        ]);
 
     Ok(res)
 }
@@ -104,13 +108,18 @@ fn check_for_unstake_batch_epoch_completion(
     deps: &mut DepsMut,
     env: &Env,
     current_batch: &mut CurrentBatch,
-) -> LstResult<Vec<CosmosMsg>> {
+) -> LstResult<(Vec<CosmosMsg>, Vec<Event>)> {
     // read parameters
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
 
+    let mut state = STATE.load(deps.storage)?;
+    let mut events: Vec<Event> = vec![];
+    let old_state = state.clone();
+
     // check if slashing has occurred and update the exchange rate
-    let mut state = check_slashing(deps, &env)?;
+    let (slashing_events, _) = check_slashing(deps, &env, &mut state)?;
+    events.extend(slashing_events);
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -127,10 +136,10 @@ fn check_for_unstake_batch_epoch_completion(
     // Store the new requested id in the batch
     CURRENT_BATCH.save(deps.storage, current_batch)?;
 
-    // Store state's new exchange rate
-    STATE.save(deps.storage, &state)?;
+    let undelegate_events = update_state(deps.storage, old_state, state)?;
+    events.extend(undelegate_events);
 
-    Ok(messages)
+    Ok((messages, events))
 }
 
 // Provides a way to manually trigger the processing of unstaking requests
@@ -140,10 +149,12 @@ pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<R
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
-    let messages = check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
+    let (messages, events) =
+        check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
 
     let res = Response::new()
         .add_messages(messages)
+        .add_events(events)
         .add_attributes(vec![attr(
             "process undelegations",
             current_batch.id.to_string(),
@@ -210,7 +221,7 @@ fn process_undelegations_for_batch(
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
     // Store history for withdraw unstaked
-    let history = UnStakeHistory {
+    let history = UnstakeHistory {
         batch_id: current_batch.id,
         time: env.block.time.seconds(),
         lst_token_amount: current_batch.requested_lst_token_amount,
@@ -300,8 +311,9 @@ fn process_withdraw_rate(
     deps: &mut DepsMut,
     unstake_cutoff_time: u64,
     hub_balance: Uint128,
-) -> LstResult<()> {
+) -> LstResult<Vec<Event>> {
     let mut state = STATE.load(deps.storage)?;
+    let old_state = state.clone();
 
     // Get all unprocessed histories
     let histories = get_unprocessed_histories(
@@ -311,7 +323,7 @@ fn process_withdraw_rate(
     )?;
 
     if histories.is_empty() {
-        return Ok(());
+        return Ok(vec![]);
     }
 
     // Calculate total unstaked amount
@@ -339,8 +351,8 @@ fn process_withdraw_rate(
         state.last_processed_batch = batch_id;
     }
 
-    STATE.save(deps.storage, &state)?;
-    Ok(())
+    let withdraw_rate_events = update_state(deps.storage, old_state, state)?;
+    Ok(withdraw_rate_events)
 }
 
 // Helper function to get unprocessed histories
@@ -349,7 +361,7 @@ fn get_unprocessed_histories(
     storage: &dyn Storage,
     start_batch: u64,
     unstake_cutoff_time: u64,
-) -> LstResult<Vec<(u64, UnStakeHistory)>> {
+) -> LstResult<Vec<(u64, UnstakeHistory)>> {
     let mut histories = Vec::new();
     let mut batch_id = start_batch + 1;
 
@@ -375,7 +387,7 @@ fn get_unprocessed_histories(
 
 // Sums up actual unstaked amount using the burnt lst amount and withdraw rate at time of unstaking
 // After slashing, the amount and rate is updated
-fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnStakeHistory)>) -> Uint256 {
+fn calculate_newly_added_unstaked_amount(histories: Vec<(u64, UnstakeHistory)>) -> Uint256 {
     let total_unstaked_amount = histories.iter().fold(Uint256::zero(), |acc, (_, history)| {
         let lst_burnt_amount = Uint256::from(history.lst_token_amount);
         let lst_historical_rate = Decimal256::from(history.lst_withdraw_rate);
@@ -434,9 +446,31 @@ fn calculate_new_withdraw_rate(
 // This method allows users to withdraw their unstaked tokens after the unstaking period has elapsed. It handles the calculation of
 // withdrawable amounts, updates the state, and send the tokens to the user.
 pub fn execute_withdraw_unstaked(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> LstResult<Response<ResponseType>> {
+    execute_withdraw_unstaked_impl(deps, env, info, None)
+}
+
+// Process the withdrawal of unstaked tokens by users for specific batch IDs
+// This method allows users to withdraw their unstaked tokens after the unstaking period has elapsed for specific batches.
+// It handles the calculation of withdrawable amounts, updates the state, and send the tokens to the user.
+pub fn execute_withdraw_unstaked_for_batches(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    batch_ids: Vec<u64>,
+) -> LstResult<Response<ResponseType>> {
+    execute_withdraw_unstaked_impl(deps, env, info, Some(batch_ids))
+}
+
+// Internal implementation of withdraw unstaked functionality
+fn execute_withdraw_unstaked_impl(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    batch_ids: Option<Vec<u64>>,
 ) -> LstResult<Response<ResponseType>> {
     // Early parameter loading
     let params = PARAMETERS.load(deps.storage)?;
@@ -452,8 +486,10 @@ pub fn execute_withdraw_unstaked(
     process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
 
     // Get withdrawable amount after rates are updated
-    let (withdraw_amount, deprecated_batches) =
-        get_finished_amount(deps.storage, info.sender.clone())?;
+    let (withdraw_amount, deprecated_batches) = match batch_ids {
+        Some(ids) => get_finished_amount_for_batches(deps.storage, info.sender.clone(), ids)?,
+        None => get_finished_amount(deps.storage, info.sender.clone())?,
+    };
 
     // Early validation
     if withdraw_amount.is_zero() {

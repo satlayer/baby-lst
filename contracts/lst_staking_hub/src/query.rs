@@ -3,7 +3,8 @@ use cw_storage_plus::Bound;
 use lst_common::{
     hub::{
         AllHistoryResponse, Config, ConfigResponse, CurrentBatch, Parameters, State,
-        UnstakeRequest, UnstakeRequestsResponse, WithdrawableUnstakedResponse,
+        UnstakeHistory, UnstakeRequestsResponses, UserUnstakeRequestsResponse,
+        WithdrawableUnstakedResponse,
     },
     to_checked_address,
     types::LstResult,
@@ -13,7 +14,7 @@ use crate::{
     contract::query_actual_state,
     math::decimal_multiplication,
     state::{
-        read_unstake_history, UnStakeHistory, CONFIG, CURRENT_BATCH, PARAMETERS, UNSTAKE_HISTORY,
+        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
         UNSTAKE_WAIT_LIST,
     },
 };
@@ -35,7 +36,9 @@ pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
 }
 
 pub fn query_state(deps: Deps, env: &Env) -> LstResult<State> {
-    query_actual_state(deps, env)
+    let mut state = STATE.load(deps.storage)?;
+    query_actual_state(deps, env, &mut state)?;
+    Ok(state)
 }
 
 pub fn query_current_batch(deps: Deps) -> LstResult<CurrentBatch> {
@@ -60,11 +63,24 @@ pub fn query_withdrawable_unstaked(
     })
 }
 
-pub fn query_unstake_requests(deps: Deps, address: String) -> LstResult<UnstakeRequestsResponse> {
+pub fn query_unstake_requests(deps: Deps, address: String) -> LstResult<UnstakeRequestsResponses> {
     let checked_addr = to_checked_address(deps, &address)?;
-    Ok(UnstakeRequestsResponse {
-        address,
-        requests: get_unstake_requests(deps.storage, checked_addr)?,
+    Ok(UnstakeRequestsResponses {
+        address: address.clone(),
+        requests: get_unstake_requests(deps.storage, checked_addr, None, None)?,
+    })
+}
+
+pub fn query_unstake_requests_limit(
+    deps: Deps,
+    address: String,
+    start_from: Option<u64>,
+    limit: Option<u32>,
+) -> LstResult<UnstakeRequestsResponses> {
+    let checked_addr = to_checked_address(deps, &address)?;
+    Ok(UnstakeRequestsResponses {
+        address: address.clone(),
+        requests: get_unstake_requests(deps.storage, checked_addr, start_from, limit)?,
     })
 }
 
@@ -77,9 +93,13 @@ pub fn query_unstake_requests_limitation(
     Ok(AllHistoryResponse {
         history: requests
             .iter()
-            .map(|request| UnstakeRequestsResponse {
-                address: request.batch_id.to_string(),
-                requests: vec![(request.batch_id, request.lst_token_amount)],
+            .map(|request| UnstakeHistory {
+                batch_id: request.batch_id,
+                time: request.time,
+                lst_token_amount: request.lst_token_amount,
+                lst_applied_exchange_rate: request.lst_applied_exchange_rate,
+                lst_withdraw_rate: request.lst_withdraw_rate,
+                released: request.released,
             })
             .collect(),
     })
@@ -112,13 +132,33 @@ fn query_get_finished_amount(
         }))
 }
 
-pub fn get_unstake_requests(storage: &dyn Storage, address: Addr) -> LstResult<UnstakeRequest> {
+pub fn get_unstake_requests(
+    storage: &dyn Storage,
+    address: Addr,
+    start_from: Option<u64>,
+    limit: Option<u32>,
+) -> LstResult<Vec<UserUnstakeRequestsResponse>> {
     UNSTAKE_WAIT_LIST
         .prefix(address)
-        .range(storage, None, None, cosmwasm_std::Order::Ascending)
+        .range(
+            storage,
+            start_from.map(Bound::inclusive),
+            None,
+            cosmwasm_std::Order::Ascending,
+        )
+        .take(limit.unwrap_or(u32::MAX) as usize)
         .map(|item| {
             let (batch_id, lst_amount) = item?;
-            Ok((batch_id, lst_amount))
+            let history = read_unstake_history(storage, batch_id)?;
+
+            Ok(UserUnstakeRequestsResponse {
+                batch_id,
+                lst_amount,
+                withdraw_exchange_rate: history.lst_withdraw_rate,
+                applied_exchange_rate: history.lst_applied_exchange_rate,
+                time: history.time,
+                released: history.released,
+            })
         })
         .collect()
 }
@@ -127,11 +167,11 @@ fn all_unstake_history(
     storage: &dyn Storage,
     start: Option<u64>,
     limit: Option<u32>,
-) -> LstResult<Vec<UnStakeHistory>> {
+) -> LstResult<Vec<UnstakeHistory>> {
     UNSTAKE_HISTORY
         .range(
             storage,
-            start.map(Bound::exclusive),
+            start.map(Bound::inclusive),
             None,
             cosmwasm_std::Order::Ascending,
         )
