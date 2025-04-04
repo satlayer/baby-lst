@@ -218,7 +218,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => Ok(to_json_binary(
             &query_unstake_requests_limitation(deps, start_from, limit)?,
         )?),
-        QueryMsg::PendingDelegation {} => Ok(to_json_binary(&query_pending_delegation(deps)?)?),
+        QueryMsg::PendingDelegation {} => {
+            Ok(to_json_binary(&query_pending_delegation(deps, &env)?)?)
+        }
     }
 }
 

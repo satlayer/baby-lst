@@ -35,8 +35,19 @@ pub fn query_config(deps: Deps) -> LstResult<ConfigResponse> {
     })
 }
 
-pub fn query_pending_delegation(deps: Deps) -> LstResult<PendingDelegation> {
-    Ok(PENDING_DELEGATION.load(deps.storage)?)
+pub fn query_pending_delegation(deps: Deps, env: &Env) -> LstResult<PendingDelegation> {
+    let mut pending_delegation = PENDING_DELEGATION.load(deps.storage)?;
+
+    let current_block_height = env.block.height;
+    let passed_blocks = current_block_height - pending_delegation.staking_epoch_start_block_height;
+    if passed_blocks >= pending_delegation.staking_epoch_length_blocks {
+        pending_delegation.pending_staking_amount = Uint128::zero();
+        pending_delegation.pending_unstaking_amount = Uint128::zero();
+        let epochs_passed = passed_blocks / pending_delegation.staking_epoch_length_blocks;
+        pending_delegation.staking_epoch_start_block_height +=
+            epochs_passed * pending_delegation.staking_epoch_length_blocks;
+    }
+    Ok(pending_delegation)
 }
 
 pub fn query_state(deps: Deps, env: &Env) -> LstResult<State> {
