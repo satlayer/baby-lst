@@ -98,6 +98,33 @@
         "additionalProperties": false
       },
       {
+        "description": "User can withdraw the amount after the unstaking process has been completed for specific batch IDs.",
+        "type": "object",
+        "required": [
+          "withdraw_unstaked_for_batches"
+        ],
+        "properties": {
+          "withdraw_unstaked_for_batches": {
+            "type": "object",
+            "required": [
+              "batch_ids"
+            ],
+            "properties": {
+              "batch_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Admin can update these parameters for configuration of the contract.",
         "type": "object",
         "required": [
