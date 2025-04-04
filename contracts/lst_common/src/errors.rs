@@ -91,4 +91,7 @@ pub enum HubError {
 
     #[error("Epoch length must be less than unstaking period")]
     InvalidPeriods,
+
+    #[error("LST token already set")]
+    LstTokenAlreadySet,
 }
