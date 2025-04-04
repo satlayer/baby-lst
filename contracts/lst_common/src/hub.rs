@@ -14,6 +14,10 @@ pub struct InstantiateMsg {
     pub staking_coin_denom: String,
     /// Unstaking period of the chain
     pub unstaking_period: u64,
+    /// Staking epoch start block height, this is inclusive in the epoch
+    pub staking_epoch_start_block_height: u64,
+    /// Staking epoch length in blocks e.g. 360 in testnet
+    pub staking_epoch_length_blocks: u64,
 }
 
 #[cw_serde]
@@ -96,6 +100,9 @@ pub enum QueryMsg {
         /// No of data to return per request
         limit: Option<u32>,
     },
+    /// Returns the pending delegation amount
+    #[returns(PendingDelegation)]
+    PendingDelegation {},
 }
 
 #[cw_serde]
@@ -266,4 +273,16 @@ pub struct UnstakeHistory {
 pub struct AllHistoryResponse {
     /// History of unstaking requests
     pub history: Vec<UnstakeHistory>,
+}
+
+#[cw_serde]
+pub struct PendingDelegation {
+    /// Staking epoch length in blocks e.g. 360 in testnet
+    pub staking_epoch_length_blocks: u64,
+    /// Staking epoch start block height, this is inclusive in the epoch
+    pub staking_epoch_start_block_height: u64,
+    /// Pending amount of staked tokens that are not yet delegated
+    pub pending_staking_amount: Uint128,
+    /// Pending amount of unstaked tokens that are not yet processed in the epoch
+    pub pending_unstaking_amount: Uint128,
 }

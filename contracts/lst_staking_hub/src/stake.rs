@@ -17,7 +17,10 @@ use lst_common::{
 use crate::{
     contract::{check_slashing, query_total_lst_token_issued},
     math::decimal_division,
-    state::{update_state, StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
+    state::{
+        update_pending_delegation_amount, update_state, StakeType, CONFIG, CURRENT_BATCH,
+        PARAMETERS, STATE,
+    },
 };
 
 pub fn execute_stake(
@@ -82,6 +85,7 @@ pub fn execute_stake(
             state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
         }
     }
+    update_pending_delegation_amount(&mut deps, &env, Some(payment.amount), None)?;
     let state_events = update_state(deps.storage, old_state, state)?;
     events.extend(state_events);
 
