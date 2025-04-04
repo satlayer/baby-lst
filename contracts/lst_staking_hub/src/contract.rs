@@ -27,7 +27,9 @@ use crate::query::{
     query_unstake_requests_limit, query_unstake_requests_limitation, query_withdrawable_unstaked,
 };
 use crate::stake::execute_stake;
-use crate::state::{StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
+use crate::state::{
+    update_state, StakeType, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+};
 use crate::unstake::{
     execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,
     execute_withdraw_unstaked, execute_withdraw_unstaked_for_batches,
@@ -209,8 +211,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> LstResult<Binary> {
 
 // Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> LstResult<Response<ResponseType>> {
+    let mut state = STATE.load(deps.storage)?;
     // call slashing
-    let (events, state) = check_slashing(&mut deps, &env)?;
+    let (events, state) = check_slashing(&mut deps, &env, &mut state)?;
     Ok(Response::new().add_events(events).add_attributes(vec![
         attr("action", "check_slashing"),
         attr("new_lst_exchange_rate", state.lst_exchange_rate.to_string()),
@@ -218,26 +221,17 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> LstResult<Response<Respo
 }
 
 // Check if slashing has happened and return the slashed amount
-pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> LstResult<(Vec<Event>, State)> {
-    let mut events: Vec<Event> = vec![];
-    let mut state = STATE.load(deps.storage)?;
-    let old_rate = state.lst_exchange_rate;
-    let old_total_staked = state.total_staked_amount;
+pub fn check_slashing<'a>(
+    deps: &mut DepsMut,
+    env: &Env,
+    state: &'a mut State,
+) -> LstResult<(Vec<Event>, &'a State)> {
+    let old_state = state.clone();
 
-    query_actual_state(deps.as_ref(), env, &mut state)?;
+    query_actual_state(deps.as_ref(), env, state)?;
 
-    STATE.save(deps.storage, &state)?;
-    events.push(
-        Event::new(LST_EXCHANGE_RATE_UPDATED)
-            .add_attribute(OLD_RATE, old_rate.to_string())
-            .add_attribute(NEW_RATE, state.lst_exchange_rate.to_string()),
-    );
-    events.push(
-        Event::new(TOTAL_STAKED_AMOUNT_UPDATED)
-            .add_attribute(OLD_AMOUNT, old_total_staked.to_string())
-            .add_attribute(NEW_AMOUNT, state.total_staked_amount.to_string()),
-    );
-    Ok((events, state.clone()))
+    let events = update_state(deps.storage, old_state, state.clone())?;
+    Ok((events, state))
 }
 
 pub(crate) fn query_total_lst_token_issued(deps: Deps) -> LstResult<Uint128> {

@@ -1,5 +1,5 @@
 use crate::{constants::*, math::decimal_multiplication};
-use cosmwasm_std::{Addr, Storage, Uint128};
+use cosmwasm_std::{Addr, Event, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use lst_common::{
     errors::HubError,
@@ -116,4 +116,25 @@ pub fn remove_unstake_wait_list(
         UNSTAKE_WAIT_LIST.remove(storage, (sender_addr.clone(), batch_id));
     }
     Ok(())
+}
+
+// Update state
+pub fn update_state(
+    storage: &mut dyn Storage,
+    old_state: State,
+    new_state: State,
+) -> LstResult<Vec<Event>> {
+    let mut events: Vec<Event> = vec![];
+    STATE.save(storage, &new_state)?;
+    events.push(
+        Event::new(LST_EXCHANGE_RATE_UPDATED)
+            .add_attribute(OLD_RATE, old_state.lst_exchange_rate.to_string())
+            .add_attribute(NEW_RATE, new_state.lst_exchange_rate.to_string()),
+    );
+    events.push(
+        Event::new(TOTAL_STAKED_AMOUNT_UPDATED)
+            .add_attribute(OLD_AMOUNT, old_state.total_staked_amount.to_string())
+            .add_attribute(NEW_AMOUNT, new_state.total_staked_amount.to_string()),
+    );
+    Ok(events)
 }

@@ -22,8 +22,8 @@ use crate::{
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
         get_finished_amount, get_finished_amount_for_batches, read_unstake_history,
-        remove_unstake_wait_list, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
-        UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        remove_unstake_wait_list, update_state, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS,
+        STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -113,8 +113,13 @@ fn check_for_unstake_batch_epoch_completion(
     let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_length;
 
+    let mut state = STATE.load(deps.storage)?;
+    let mut events: Vec<Event> = vec![];
+    let old_state = state.clone();
+
     // check if slashing has occurred and update the exchange rate
-    let (events, mut state) = check_slashing(deps, &env)?;
+    let (slashing_events, _) = check_slashing(deps, &env, &mut state)?;
+    events.extend(slashing_events);
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
@@ -131,8 +136,8 @@ fn check_for_unstake_batch_epoch_completion(
     // Store the new requested id in the batch
     CURRENT_BATCH.save(deps.storage, current_batch)?;
 
-    // Store state's new exchange rate
-    STATE.save(deps.storage, &state)?;
+    let undelegate_events = update_state(deps.storage, old_state, state)?;
+    events.extend(undelegate_events);
 
     Ok((messages, events))
 }
@@ -306,8 +311,9 @@ fn process_withdraw_rate(
     deps: &mut DepsMut,
     unstake_cutoff_time: u64,
     hub_balance: Uint128,
-) -> LstResult<()> {
+) -> LstResult<Vec<Event>> {
     let mut state = STATE.load(deps.storage)?;
+    let old_state = state.clone();
 
     // Get all unprocessed histories
     let histories = get_unprocessed_histories(
@@ -317,7 +323,7 @@ fn process_withdraw_rate(
     )?;
 
     if histories.is_empty() {
-        return Ok(());
+        return Ok(vec![]);
     }
 
     // Calculate total unstaked amount
@@ -345,8 +351,8 @@ fn process_withdraw_rate(
         state.last_processed_batch = batch_id;
     }
 
-    STATE.save(deps.storage, &state)?;
-    Ok(())
+    let withdraw_rate_events = update_state(deps.storage, old_state, state)?;
+    Ok(withdraw_rate_events)
 }
 
 // Helper function to get unprocessed histories

@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate;
 use cosmwasm_std::{
-    attr, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
-    WasmMsg, WasmQuery,
+    attr, to_json_binary, CosmosMsg, DepsMut, Env, Event, MessageInfo, QueryRequest, Response,
+    Uint128, WasmMsg, WasmQuery,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
@@ -17,7 +17,7 @@ use lst_common::{
 use crate::{
     contract::{check_slashing, query_total_lst_token_issued},
     math::decimal_division,
-    state::{StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
+    state::{update_state, StakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE},
 };
 
 pub fn execute_stake(
@@ -31,6 +31,9 @@ pub fn execute_stake(
 
     let config = CONFIG.load(deps.storage)?;
     let sender = info.sender.clone();
+
+    let mut state = STATE.load(deps.storage)?;
+    let old_state = state.clone();
 
     let reward_dispatcher_address = &config
         .reward_dispatcher_contract
@@ -54,8 +57,10 @@ pub fn execute_stake(
         .find(|coin| coin.denom == staking_coin_denom && coin.amount > Uint128::zero())
         .ok_or(HubError::InvalidAmount)?;
 
+    let mut events: Vec<Event> = vec![];
     // check slashing and get the latest exchange rate
-    let (events, state) = check_slashing(&mut deps, &env)?;
+    let (slashing_events, _) = check_slashing(&mut deps, &env, &mut state)?;
+    events.extend(slashing_events);
 
     let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap_or_default();
 
@@ -67,19 +72,17 @@ pub fn execute_stake(
     total_supply += mint_amount;
 
     // state update
-    STATE.update(deps.storage, |mut prev_state| -> LstResult<_> {
-        match stake_type {
-            StakeType::LSTMint => {
-                prev_state.total_staked_amount += payment.amount;
-                Ok(prev_state)
-            }
-            StakeType::StakeRewards => {
-                prev_state.total_staked_amount += payment.amount;
-                prev_state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
-                Ok(prev_state)
-            }
+    match stake_type {
+        StakeType::LSTMint => {
+            state.total_staked_amount += payment.amount;
         }
-    })?;
+        StakeType::StakeRewards => {
+            state.total_staked_amount += payment.amount;
+            state.update_lst_exchange_rate(total_supply, requested_withdrawal_amount);
+        }
+    }
+    let state_events = update_state(deps.storage, old_state, state)?;
+    events.extend(state_events);
 
     //validators management
     let validators_registry_contract = config
