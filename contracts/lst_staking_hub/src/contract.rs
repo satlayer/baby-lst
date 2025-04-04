@@ -226,13 +226,13 @@ pub fn check_slashing<'a>(
     env: &Env,
     state: &'a mut State,
 ) -> LstResult<(Vec<Event>, &'a State)> {
-    todo!()
     // let old_state = state.clone();
 
     // query_actual_state(deps.as_ref(), env, state)?;
 
     // let events = update_state(deps.storage, old_state, state.clone())?;
     // Ok((events, state))
+    Ok((vec![], state))
 }
 
 pub(crate) fn query_total_lst_token_issued(deps: Deps) -> LstResult<Uint128> {
