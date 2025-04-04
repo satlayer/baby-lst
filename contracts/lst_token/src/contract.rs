@@ -1,8 +1,8 @@
 use std::env;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::MinterResponse;
@@ -20,7 +20,7 @@ use cw20_base::{
     ContractError,
 };
 
-use lst_common::hub::{is_paused, ExecuteMsg::CheckSlashing};
+use lst_common::hub::ExecuteMsg::CheckSlashing;
 
 use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
 
@@ -74,14 +74,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let hub_addr: Addr = HUB_CONTRACT.load(deps.storage)?;
-
-    if is_paused(deps.as_ref(), hub_addr.to_string())? {
-        return Err(ContractError::Std(StdError::generic_err(
-            "Hub Contract is paused",
-        )));
-    }
-
     match msg {
         ExecuteMsg::Transfer { recipient, amount } => {
             execute_transfer(deps, env, info, recipient, amount)
