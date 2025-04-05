@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Time to batch the unstake request in the staking hub. Longer epoch lenght means user would have to wait longer to unstake.
+    /// Time to batch the unstake request in the staking hub. Longer epoch length means user would have to wait longer to unstake.
     pub epoch_length: u64,
     /// Denom to use for staking
     pub staking_coin_denom: String,
