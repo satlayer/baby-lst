@@ -1,7 +1,8 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate;
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, Event, MessageInfo, QueryRequest, Response, Uint128, WasmMsg, WasmQuery,
+    Binary, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg, Env, Event, MessageInfo,
+    QueryRequest, Response, Uint128, WasmMsg, WasmQuery, attr, entry_point, from_json,
+    to_json_binary,
 };
 
 use cw2::set_contract_version;
@@ -9,7 +10,7 @@ use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use lst_common::hub::PendingDelegation;
 use lst_common::types::{LstResult, ProtoCoin, ResponseType, StdCoin};
-use lst_common::ContractError;
+use lst_common::{ContractError, MigrateMsg, validate_migration};
 use lst_common::{
     babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate},
     errors::HubError,
@@ -30,8 +31,8 @@ use crate::query::{
 };
 use crate::stake::execute_stake;
 use crate::state::{
-    get_pending_delegation_amount, update_state, StakeType, UnstakeType, CONFIG, CURRENT_BATCH,
-    PARAMETERS, PENDING_DELEGATION, STATE,
+    CONFIG, CURRENT_BATCH, PARAMETERS, PENDING_DELEGATION, STATE, StakeType, UnstakeType,
+    get_pending_delegation_amount, update_state,
 };
 use crate::unstake::{
     execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,
@@ -422,6 +423,14 @@ fn withdraw_all_rewards(
     }
 
     Ok(messages)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::default().add_attribute("migrate", "successful"))
 }
 
 fn prepare_wrapped_begin_redelegate_msg(

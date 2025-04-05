@@ -1,16 +1,17 @@
 use cosmwasm_std::{
-    attr, entry_point, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128, WasmMsg, attr, entry_point, to_json_binary,
 };
 use cw2::set_contract_version;
 use lst_common::{
-    hub::{is_paused, ExecuteMsg::StakeRewards},
+    ContractError, MigrateMsg,
+    hub::{ExecuteMsg::StakeRewards, is_paused},
     to_checked_address,
     types::LstResult,
-    ContractError, MigrateMsg,
+    validate_migration,
 };
 
-use crate::{state::CONFIG, MAX_FEE_RATE};
+use crate::{MAX_FEE_RATE, state::CONFIG};
 use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 const CONTRACT_NAME: &str = "crates.io:reward-dispatcher";
@@ -179,6 +180,8 @@ fn query_config(deps: Deps) -> LstResult<Config> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response> {
+    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default().add_attribute("migrate", "successful"))
 }
