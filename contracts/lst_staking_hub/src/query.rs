@@ -14,8 +14,8 @@ use crate::{
     contract::query_actual_state,
     math::decimal_multiplication,
     state::{
-        read_unstake_history, CONFIG, CURRENT_BATCH, PARAMETERS, PENDING_DELEGATION, STATE,
-        UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        CONFIG, CURRENT_BATCH, PARAMETERS, PENDING_DELEGATION, STATE, UNSTAKE_HISTORY,
+        UNSTAKE_WAIT_LIST, read_unstake_history,
     },
 };
 

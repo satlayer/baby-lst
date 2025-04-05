@@ -1,6 +1,6 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_schema::{QueryResponses, cw_serde};
 use cosmwasm_std::{
-    to_json_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery, to_json_binary,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Time to batch the unstake request in the staking hub. Should match the epoch length of chain
+    /// Time to batch the unstake request in the staking hub. Longer epoch lenght means user would have to wait longer to unstake.
     pub epoch_length: u64,
     /// Denom to use for staking
     pub staking_coin_denom: String,
     /// Unstaking period of the chain
     pub unstaking_period: u64,
-    /// Staking epoch start block height, this is inclusive in the epoch
+    /// Staking epoch start block height, this is inclusive in the epoch. This height must match the starting height of the epoch of the chain.
     pub staking_epoch_start_block_height: u64,
     /// Staking epoch length in blocks e.g. 360 in testnet
     pub staking_epoch_length_blocks: u64,
@@ -58,7 +58,7 @@ pub enum QueryMsg {
     /// Returns the config values of the contract
     #[returns(ConfigResponse)]
     Config {},
-    /// Retursn the state variables in the contract
+    /// Returns the state variables in the contract. This method returns the actual exchange rate by dynamic caclulation rather than the stored one in the contract.
     #[returns(State)]
     State {},
     /// Returns the details of current unstaking batch

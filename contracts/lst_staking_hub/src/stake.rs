@@ -1,25 +1,25 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgDelegate;
 use cosmwasm_std::{
-    attr, to_json_binary, CosmosMsg, DepsMut, Env, Event, MessageInfo, QueryRequest, Response,
-    Uint128, WasmMsg, WasmQuery,
+    CosmosMsg, DepsMut, Env, Event, MessageInfo, QueryRequest, Response, Uint128, WasmMsg,
+    WasmQuery, attr, to_json_binary,
 };
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 use lst_common::{
+    ContractError, ValidatorError,
     babylon_msg::{CosmosAny, MsgWrappedDelegate},
     calculate_delegations,
     errors::HubError,
     types::{LstResult, ProtoCoin, ResponseType},
     validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
-    ContractError, ValidatorError,
 };
 
 use crate::{
     contract::{check_slashing, query_total_lst_token_issued},
     math::decimal_division,
     state::{
-        update_pending_delegation_amount, update_state, StakeType, CONFIG, CURRENT_BATCH,
-        PARAMETERS, STATE,
+        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, StakeType, update_pending_delegation_amount,
+        update_state,
     },
 };
 

@@ -1,12 +1,13 @@
 use std::env;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, SubMsg, Uint128,
+    WasmMsg, entry_point, to_json_binary,
 };
 use cw2::set_contract_version;
 use cw20::MinterResponse;
 use cw20_base::{
+    ContractError,
     allowances::{
         execute_burn_from as cw20_burn_from, execute_decrease_allowance,
         execute_increase_allowance, execute_send_from, execute_transfer_from,
@@ -17,7 +18,6 @@ use cw20_base::{
         instantiate as cw20_init, query as cw20_query,
     },
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
-    ContractError,
 };
 
 use lst_common::hub::ExecuteMsg::CheckSlashing;

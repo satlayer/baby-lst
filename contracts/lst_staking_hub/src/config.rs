@@ -1,13 +1,13 @@
 use cosmwasm_std::{
-    attr, Addr, CosmosMsg, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response,
+    Addr, CosmosMsg, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response, attr,
 };
 
 use lst_common::{
+    ContractError,
     errors::HubError,
     hub::{Config, Parameters},
     to_checked_address,
     types::{LstResult, ResponseType},
-    ContractError,
 };
 
 use crate::constants::{MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD};

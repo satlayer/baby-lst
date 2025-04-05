@@ -12,6 +12,7 @@ pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
 pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
 pub const STATE: Item<State> = Item::new(STATE_KEY);
 
+/// HashMap<user's address, <batch_id, requested_amount>
 pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
 pub const UNSTAKE_HISTORY: Map<u64, UnstakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 
@@ -191,7 +192,7 @@ pub fn update_pending_delegation_amount(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier};
+    use cosmwasm_std::testing::{MockApi, MockQuerier, mock_dependencies, mock_env};
     use cosmwasm_std::{MemoryStorage, OwnedDeps, Uint128};
 
     fn setup_test_env() -> (OwnedDeps<MemoryStorage, MockApi, MockQuerier>, Env) {
