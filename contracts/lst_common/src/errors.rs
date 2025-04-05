@@ -66,6 +66,9 @@ pub enum ValidatorError {
 
     #[error("Invalid key")]
     InvalidKey,
+
+    #[error("Pending redelegation not found")]
+    PendingRedelegationNotFound,
 }
 
 #[derive(Error, Debug, PartialEq)]

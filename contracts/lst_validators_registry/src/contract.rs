@@ -167,7 +167,7 @@ fn remove_validator(
                     deps.storage,
                     validator_operator_addr.as_bytes(),
                     &PendingRedelegation {
-                        src_validator: validator_addr.clone(),
+                        src_validator: validator_operator_addr.clone(),
                         redelegations,
                         timestamp: env.block.time.seconds(),
                     },
@@ -234,7 +234,11 @@ fn retry_redelegation(
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
 
-    let pending = PENDING_REDELEGATIONS.load(deps.storage, validator_operator_addr.as_bytes())?;
+    let pending = PENDING_REDELEGATIONS
+        .may_load(deps.storage, validator_operator_addr.as_bytes())?
+        .ok_or(ContractError::Validator(
+            ValidatorError::PendingRedelegationNotFound,
+        ))?;
 
     // Check if enough time has passed since the last attempt
     let time_since_last_attempt = env.block.time.seconds() - pending.timestamp;
