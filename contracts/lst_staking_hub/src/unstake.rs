@@ -149,6 +149,10 @@ pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<R
     // load current batch
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
+    if current_batch.requested_lst_token_amount == Uint128::zero() {
+        return Ok(Response::new());
+    }
+
     let (messages, events) =
         check_for_unstake_batch_epoch_completion(&mut deps, &env, &mut current_batch)?;
 
