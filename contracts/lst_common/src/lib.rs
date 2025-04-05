@@ -8,7 +8,7 @@ pub mod types;
 pub mod validator;
 
 pub use crate::signed_integer::SignedInt;
-use cosmwasm_std::{Addr, CanonicalAddr, Deps};
+use cosmwasm_std::{Addr, Deps};
 use semver::Version;
 
 use types::LstResult;
@@ -28,10 +28,6 @@ pub fn to_checked_address(deps: Deps, address: &str) -> LstResult<Addr> {
         .api
         .addr_validate(address)
         .map_err(|_| ContractError::InvalidAddress);
-}
-
-pub fn to_canoncial_addr(deps: Deps, addr: &str) -> LstResult<CanonicalAddr> {
-    Ok(deps.api.addr_canonicalize(addr)?)
 }
 
 /// Validates if the migration is allowed based on the current and new versions.
