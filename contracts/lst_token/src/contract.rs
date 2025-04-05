@@ -1,13 +1,12 @@
 use std::env;
 
 use cosmwasm_std::{
-    Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, SubMsg, Uint128,
-    WasmMsg, entry_point, to_json_binary,
+    entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::MinterResponse;
 use cw20_base::{
-    ContractError,
     allowances::{
         execute_burn_from as cw20_burn_from, execute_decrease_allowance,
         execute_increase_allowance, execute_send_from, execute_transfer_from,
@@ -18,11 +17,15 @@ use cw20_base::{
         instantiate as cw20_init, query as cw20_query,
     },
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    ContractError,
 };
 
 use lst_common::hub::ExecuteMsg::CheckSlashing;
 
 use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
+
+const CONTRACT_NAME: &str = "crates.io:satlayer-lst";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

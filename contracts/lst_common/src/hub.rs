@@ -1,6 +1,6 @@
-use cosmwasm_schema::{QueryResponses, cw_serde};
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
-    Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery, to_json_binary,
+    to_json_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;

@@ -192,7 +192,7 @@ pub fn update_pending_delegation_amount(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{MockApi, MockQuerier, mock_dependencies, mock_env};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{MemoryStorage, OwnedDeps, Uint128};
 
     fn setup_test_env() -> (OwnedDeps<MemoryStorage, MockApi, MockQuerier>, Env) {

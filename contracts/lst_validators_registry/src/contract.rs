@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
-    entry_point, to_json_binary,
+    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 
 use lst_common::{
-    ContractError, MigrateMsg, calculate_delegations,
+    calculate_delegations,
     errors::ValidatorError,
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
@@ -17,10 +17,11 @@ use lst_common::{
         Config, ExecuteMsg, InstantiateMsg, PendingRedelegation, QueryMsg, Validator,
         ValidatorResponse,
     },
+    ContractError, MigrateMsg,
 };
 
 use crate::{
-    helper::{VALIDATOR_ADDR_PREFIX, convert_addr_by_prefix, fetch_validator_info},
+    helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
     state::{CONFIG, PENDING_REDELEGATIONS, REDELEGATION_COOLDOWN, VALIDATOR_REGISTRY},
 };
 

@@ -1,8 +1,7 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgBeginRedelegate;
 use cosmwasm_std::{
-    Binary, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg, Env, Event, MessageInfo,
-    QueryRequest, Response, Uint128, WasmMsg, WasmQuery, attr, entry_point, from_json,
-    to_json_binary,
+    attr, entry_point, from_json, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, Event, MessageInfo, QueryRequest, Response, Uint128, WasmMsg, WasmQuery,
 };
 
 use cw2::set_contract_version;
@@ -10,7 +9,6 @@ use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use lst_common::hub::PendingDelegation;
 use lst_common::types::{LstResult, ProtoCoin, ResponseType, StdCoin};
-use lst_common::{ContractError, MigrateMsg, validate_migration};
 use lst_common::{
     babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate},
     errors::HubError,
@@ -18,6 +16,7 @@ use lst_common::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
 };
+use lst_common::{validate_migration, ContractError, MigrateMsg};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{
@@ -31,8 +30,8 @@ use crate::query::{
 };
 use crate::stake::execute_stake;
 use crate::state::{
-    CONFIG, CURRENT_BATCH, PARAMETERS, PENDING_DELEGATION, STATE, StakeType, UnstakeType,
-    get_pending_delegation_amount, update_state,
+    get_pending_delegation_amount, update_state, StakeType, UnstakeType, CONFIG, CURRENT_BATCH,
+    PARAMETERS, PENDING_DELEGATION, STATE,
 };
 use crate::unstake::{
     execute_process_undelegations, execute_process_withdraw_requests, execute_unstake,

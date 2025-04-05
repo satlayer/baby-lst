@@ -3,7 +3,7 @@ use std::ops::Sub;
 use cosmwasm_std::Uint128;
 
 use crate::validator::ValidatorResponse;
-use crate::{ContractError, ValidatorError, types::LstResult};
+use crate::{types::LstResult, ContractError, ValidatorError};
 
 pub fn calculate_delegations(
     mut amt_to_delegate: Uint128,
