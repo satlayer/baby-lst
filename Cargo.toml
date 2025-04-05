@@ -1,11 +1,5 @@
 [workspace]
 members = ["contracts/*"]
-default-members = [
-  "contracts/lst_staking_hub",
-  "contracts/lst_reward_dispatcher",
-  "contracts/lst_validators_registry",
-  "contracts/lst_token",
-]
 
 resolver = "2"
 
