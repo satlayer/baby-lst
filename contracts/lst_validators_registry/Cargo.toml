@@ -18,6 +18,8 @@ cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true
 cw2.workspace = true
 thiserror.workspace = true
+serde = { workspace = true, features = ["derive"] }
+schemars.workspace = true
 
 lst_common = { path = "../lst_common" }
 

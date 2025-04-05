@@ -815,6 +815,8 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "lst_common",
+ "schemars",
+ "serde",
  "thiserror 1.0.69",
 ]
 

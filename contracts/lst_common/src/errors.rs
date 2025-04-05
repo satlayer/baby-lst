@@ -51,6 +51,15 @@ pub enum ValidatorError {
 
     #[error("Undelegation amount exceeds total delegations")]
     ExceedUndelegation,
+
+    #[error("Not enough time has passed since last attempt")]
+    RedelegationCooldownNotMet,
+
+    #[error("Validator not found")]
+    ValidatorNotFound,
+
+    #[error("Invalid key")]
+    InvalidKey,
 }
 
 #[derive(Error, Debug, PartialEq)]

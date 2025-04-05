@@ -1,5 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Coin, Uint128};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Instantiate the validator registry contract
 #[cw_serde]
@@ -31,6 +33,9 @@ pub enum ExecuteMsg {
         /// Address of the hub contract
         hub_contract: Option<String>,
     },
+
+    /// Retry redelegation for a validator
+    RetryRedelegation { validator: String },
 }
 
 #[cw_serde]
@@ -42,6 +47,8 @@ pub enum QueryMsg {
     /// Return the configuration parameters of the contract
     #[returns(Config)]
     Config {},
+    #[returns(Vec<PendingRedelegation>)]
+    PendingRedelegations {},
 }
 
 #[cw_serde]
@@ -62,4 +69,11 @@ pub struct Config {
 #[cw_serde]
 pub struct Validator {
     pub address: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PendingRedelegation {
+    pub src_validator: String,
+    pub redelegations: Vec<(String, Coin)>,
+    pub timestamp: u64,
 }
