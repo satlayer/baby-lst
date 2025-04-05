@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    entry_point, to_json_binary,
 };
 use cw2::set_contract_version;
 
 use lst_common::{
-    calculate_delegations,
+    ContractError, MigrateMsg, calculate_delegations,
     errors::ValidatorError,
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
@@ -16,11 +16,10 @@ use lst_common::{
         Config, ExecuteMsg, InstantiateMsg, PendingRedelegation, QueryMsg, Validator,
         ValidatorResponse,
     },
-    ContractError, MigrateMsg,
 };
 
 use crate::{
-    helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
+    helper::{VALIDATOR_ADDR_PREFIX, convert_addr_by_prefix, fetch_validator_info},
     state::{CONFIG, PENDING_REDELEGATIONS, REDELEGATION_COOLDOWN, VALIDATOR_REGISTRY},
 };
 
@@ -99,12 +98,9 @@ fn add_validator(
     info: MessageInfo,
     validator: Validator,
 ) -> LstResult<Response> {
-    let Config {
-        owner,
-        hub_contract,
-    } = CONFIG.load(deps.storage)?;
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
 
-    if !(info.sender == owner || info.sender == hub_contract) {
+    if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
