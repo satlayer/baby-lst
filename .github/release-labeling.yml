@@ -1,0 +1,28 @@
+version: v1
+
+labels:
+  - label: s/feat
+    sync: true
+    matcher:
+      title: "^feat: .+"
+
+  - label: s/fix
+    sync: true
+    matcher:
+      title: "^fix: .+"
+
+  - label: s/chore
+    sync: true
+    matcher:
+      title: "^chore(\\(.+\\))?: .+"
+
+checks:
+  - context: "Semantic Pull Request"
+    description:
+      success: Ready for review & merge.
+      failure: "Missing semantic title [feat/fix/chore(optional): what's change]"
+    labels:
+      any:
+        - s/feat
+        - s/fix
+        - s/chore
