@@ -114,7 +114,7 @@ fn add_validator(
         VALIDATOR_REGISTRY.save(deps.storage, info.address.as_bytes(), &validator)?;
     }
 
-    Ok(Response::default())
+    Ok(Response::default().add_attribute("validator", validator.address.to_string()))
 }
 
 fn remove_validator(
@@ -204,7 +204,7 @@ fn remove_validator(
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: hub_contract_string.clone(),
         msg: to_json_binary(&RedelegateProxy {
-            src_validator: validator_addr,
+            src_validator: validator_addr.clone(),
             redelegations,
         })?,
         funds: vec![],
@@ -219,7 +219,10 @@ fn remove_validator(
     // Only remove from registry after successful redelegation
     VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("validator", validator_addr)
+        .add_attribute("undelegation", delegation.amount.amount))
 }
 
 fn retry_redelegation(
@@ -262,7 +265,9 @@ fn retry_redelegation(
     // Remove pending redelegation after successful retry
     PENDING_REDELEGATIONS.remove(deps.storage, validator_operator_addr.as_bytes());
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("redelegation", validator_addr))
 }
 
 // Update validator registry contract config. owner/hub_contract
@@ -281,6 +286,7 @@ fn update_config(
     if info.sender != owner_addr {
         return Err(ContractError::Unauthorized {});
     }
+    let mut res = Response::default();
 
     if let Some(owner) = owner {
         let owner_raw = to_checked_address(deps.as_ref(), owner.as_str())?;
@@ -288,6 +294,7 @@ fn update_config(
             old_config.owner = owner_raw;
             Ok(old_config)
         })?;
+        res = res.add_attribute("owner", owner);
     }
 
     if let Some(hub_contract) = hub_contract {
@@ -296,9 +303,10 @@ fn update_config(
             old_config.hub_contract = hub_addr_raw;
             Ok(old_config)
         })?;
+        res = res.add_attribute("hub", hub_contract);
     }
 
-    Ok(Response::default())
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
