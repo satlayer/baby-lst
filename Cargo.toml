@@ -40,4 +40,4 @@ cw20 = "2.0.0"
 cosmos-sdk-proto = { version = "0.27.0", default-features = false, features = [
   "cosmwasm",
 ] }
-prost = "0.13.5"
+prost = {version = "0.13.5", default-features = false }

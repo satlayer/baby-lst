@@ -29,12 +29,12 @@ pub fn instantiate(
     let InstantiateMsg {
         hub_contract,
         reward_denom,
-        satlayer_fee_addr,
-        satlayer_fee_rate,
+        fee_addr,
+        fee_rate,
     } = msg;
 
     // Validate fee rate if provided
-    if satlayer_fee_rate > MAX_FEE_RATE {
+    if fee_rate > MAX_FEE_RATE {
         return Err(ContractError::InvalidFeeRate {});
     }
 
@@ -42,8 +42,8 @@ pub fn instantiate(
         owner: info.sender,
         hub_contract: to_checked_address(deps.as_ref(), &hub_contract)?,
         reward_denom,
-        satlayer_fee_addr: to_checked_address(deps.as_ref(), &satlayer_fee_addr)?,
-        satlayer_fee_rate,
+        fee_addr: to_checked_address(deps.as_ref(), &fee_addr)?,
+        fee_rate,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -58,17 +58,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-            satlayer_fee_addr,
-            satlayer_fee_rate,
-        } => execute_update_config(
-            deps,
-            env,
-            info,
-            owner,
-            hub_contract,
-            satlayer_fee_addr,
-            satlayer_fee_rate,
-        ),
+            fee_addr,
+            fee_rate,
+        } => execute_update_config(deps, env, info, owner, hub_contract, fee_addr, fee_rate),
     }
 }
 
@@ -78,13 +70,13 @@ fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     hub_contract: Option<String>,
-    satlayer_fee_addr: Option<String>,
-    satlayer_fee_rate: Option<Decimal>,
+    fee_addr: Option<String>,
+    fee_rate: Option<Decimal>,
 ) -> LstResult<Response> {
     is_authorized_sender(deps.as_ref(), info.sender)?;
 
     // Validate fee rate if provided
-    if let Some(rate) = &satlayer_fee_rate {
+    if let Some(rate) = &fee_rate {
         if rate > &MAX_FEE_RATE {
             return Err(ContractError::InvalidFeeRate {});
         }
@@ -99,11 +91,11 @@ fn execute_update_config(
     if let Some(h) = hub_contract {
         config.hub_contract = to_checked_address(deps.as_ref(), &h)?;
     }
-    if let Some(s) = satlayer_fee_addr {
-        config.satlayer_fee_addr = to_checked_address(deps.as_ref(), &s)?;
+    if let Some(s) = fee_addr {
+        config.fee_addr = to_checked_address(deps.as_ref(), &s)?;
     }
-    if let Some(rate) = satlayer_fee_rate {
-        config.satlayer_fee_rate = rate;
+    if let Some(rate) = fee_rate {
+        config.fee_rate = rate;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -133,7 +125,7 @@ fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> LstRe
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
 
-    let reward_fee_amt = compute_fee(rewards.amount, config.satlayer_fee_rate);
+    let reward_fee_amt = compute_fee(rewards.amount, config.fee_rate);
 
     if !reward_fee_amt.is_zero() {
         let fee_coin = Coin {
@@ -145,7 +137,7 @@ fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> LstRe
 
         messages.push(
             BankMsg::Send {
-                to_address: config.satlayer_fee_addr.to_string(),
+                to_address: config.fee_addr.to_string(),
                 amount: vec![fee_coin],
             }
             .into(),

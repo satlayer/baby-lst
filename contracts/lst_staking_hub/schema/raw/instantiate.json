@@ -5,6 +5,8 @@
   "required": [
     "epoch_length",
     "staking_coin_denom",
+    "staking_epoch_length_blocks",
+    "staking_epoch_start_block_height",
     "unstaking_period"
   ],
   "properties": {
@@ -17,6 +19,18 @@
     "staking_coin_denom": {
       "description": "Denom to use for staking",
       "type": "string"
+    },
+    "staking_epoch_length_blocks": {
+      "description": "Staking epoch length in blocks e.g. 360 in testnet",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "staking_epoch_start_block_height": {
+      "description": "Staking epoch start block height, this is inclusive in the epoch",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "unstaking_period": {
       "description": "Unstaking period of the chain",

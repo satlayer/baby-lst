@@ -10,3 +10,13 @@ pub const UNSTAKE_HISTORY_KEY: &str = "unstake_history";
 pub const MAX_EPOCH_LENGTH: u64 = 7 * 24 * 60 * 60;
 // Maximum allowed unstaking period in seconds (4 weeks)
 pub const MAX_UNSTAKING_PERIOD: u64 = 4 * 7 * 24 * 60 * 60;
+
+//Event names
+pub const LST_EXCHANGE_RATE_UPDATED: &str = "LstExchangeRateUpdated";
+pub const TOTAL_STAKED_AMOUNT_UPDATED: &str = "TotalStakedAmountUpdated";
+pub const OLD_RATE: &str = "old_rate";
+pub const NEW_RATE: &str = "new_rate";
+pub const OLD_AMOUNT: &str = "old_amount";
+pub const NEW_AMOUNT: &str = "new_amount";
+
+pub const PENDING_DELEGATION_KEY: &str = "pending_delegation";

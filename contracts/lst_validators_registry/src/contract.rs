@@ -12,13 +12,16 @@ use lst_common::{
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
     types::LstResult,
-    validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
+    validator::{
+        Config, ExecuteMsg, InstantiateMsg, PendingRedelegation, QueryMsg, Validator,
+        ValidatorResponse,
+    },
     ContractError, MigrateMsg,
 };
 
 use crate::{
     helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
-    state::{CONFIG, VALIDATOR_REGISTRY},
+    state::{CONFIG, PENDING_REDELEGATIONS, REDELEGATION_COOLDOWN, VALIDATOR_REGISTRY},
 };
 
 const CONTRACT_NAME: &str = "crates.io:validator-registry";
@@ -78,6 +81,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
             owner,
             hub_contract,
         } => update_config(deps, env, info, owner, hub_contract),
+        ExecuteMsg::RetryRedelegation { validator } => {
+            retry_redelegation(deps, env, info, validator)
+        }
     }
 }
 
@@ -113,7 +119,7 @@ fn add_validator(
 
 fn remove_validator(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     validator_addr: String,
 ) -> LstResult<Response> {
@@ -129,8 +135,6 @@ fn remove_validator(
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
 
-    VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
-
     let validators = query_validators(deps.as_ref())?;
 
     if validators.is_empty() {
@@ -141,10 +145,43 @@ fn remove_validator(
         .querier
         .query_delegation(hub_contract.clone(), validator_addr.clone())?
     {
-        Some(delegation) if delegation.can_redelegate.amount >= delegation.amount.amount => {
-            delegation
+        Some(delegation) => {
+            if delegation.can_redelegate.amount >= delegation.amount.amount {
+                delegation
+            } else {
+                // Store pending redelegation if funds cannot be redelegated immediately
+                let delegations =
+                    calculate_delegations(delegation.amount.amount, validators.as_slice())?;
+                let redelegations = validators
+                    .iter()
+                    .zip(delegations.iter())
+                    .filter(|(_, amt)| !amt.is_zero())
+                    .map(|(val, amt)| {
+                        (
+                            val.address.clone(),
+                            Coin::new(amt.u128(), delegation.amount.denom.as_str()),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                PENDING_REDELEGATIONS.save(
+                    deps.storage,
+                    validator_operator_addr.as_bytes(),
+                    &PendingRedelegation {
+                        src_validator: validator_addr.clone(),
+                        redelegations,
+                        timestamp: env.block.time.seconds(),
+                    },
+                )?;
+
+                // Only remove from registry after storing pending redelegation
+                VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
+                return Ok(Response::new().add_attribute("status", "pending_redelegation"));
+            }
         }
-        _ => return Ok(Response::new()),
+        None => {
+            return Err(ValidatorError::ValidatorNotFound.into());
+        }
     };
 
     let delegations = calculate_delegations(delegation.amount.amount, validators.as_slice())?;
@@ -178,6 +215,52 @@ fn remove_validator(
         msg: to_json_binary(&UpdateGlobalIndex {})?,
         funds: vec![],
     }));
+
+    // Only remove from registry after successful redelegation
+    VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
+
+    Ok(Response::new().add_messages(messages))
+}
+
+fn retry_redelegation(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    validator_addr: String,
+) -> LstResult<Response> {
+    let Config { hub_contract, .. } = CONFIG.load(deps.storage)?;
+    let validator_operator_addr =
+        convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
+
+    let pending = PENDING_REDELEGATIONS.load(deps.storage, validator_operator_addr.as_bytes())?;
+
+    // Check if enough time has passed since the last attempt
+    let time_since_last_attempt = env.block.time.seconds() - pending.timestamp;
+    if time_since_last_attempt < REDELEGATION_COOLDOWN {
+        // 24 hours
+        return Err(ValidatorError::RedelegationCooldownNotMet.into());
+    }
+
+    let hub_contract_string = hub_contract.to_string();
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract_string.clone(),
+        msg: to_json_binary(&RedelegateProxy {
+            src_validator: pending.src_validator,
+            redelegations: pending.redelegations,
+        })?,
+        funds: vec![],
+    }));
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract_string,
+        msg: to_json_binary(&UpdateGlobalIndex {})?,
+        funds: vec![],
+    }));
+
+    // Remove pending redelegation after successful retry
+    PENDING_REDELEGATIONS.remove(deps.storage, validator_operator_addr.as_bytes());
 
     Ok(Response::new().add_messages(messages))
 }
@@ -223,6 +306,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => query_config(deps),
         QueryMsg::ValidatorsDelegation {} => Ok(to_json_binary(&query_validators(deps)?)?),
+        QueryMsg::PendingRedelegations {} => {
+            Ok(to_json_binary(&query_pending_redelegations(deps)?)?)
+        }
     }
 }
 
@@ -258,4 +344,17 @@ fn query_validators(deps: Deps) -> LstResult<Vec<ValidatorResponse>> {
     responses.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
     Ok(responses)
+}
+
+fn query_pending_redelegations(deps: Deps) -> LstResult<Vec<(String, PendingRedelegation)>> {
+    let pending_redelegations: Vec<(String, PendingRedelegation)> = PENDING_REDELEGATIONS
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .map(|item| {
+            let (key, value) = item?;
+            String::from_utf8(key)
+                .map_err(|_| ValidatorError::InvalidKey.into())
+                .map(|key_str| (key_str, value))
+        })
+        .collect::<LstResult<Vec<_>>>()?;
+    Ok(pending_redelegations)
 }
