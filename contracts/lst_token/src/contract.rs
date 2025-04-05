@@ -4,7 +4,6 @@ use cosmwasm_std::{
     entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
     StdResult, SubMsg, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
 use cw20::MinterResponse;
 use cw20_base::{
     allowances::{
@@ -16,13 +15,13 @@ use cw20_base::{
         execute_update_marketing, execute_update_minter, execute_upload_logo,
         instantiate as cw20_init, query as cw20_query,
     },
-    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg as Cw20InstantiateMsg, MigrateMsg, QueryMsg},
     ContractError,
 };
 
 use lst_common::hub::ExecuteMsg::CheckSlashing;
 
-use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
+use crate::{msg::InstantiateMsg, state::HUB_CONTRACT};
 
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -32,15 +31,14 @@ pub fn instantiate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: TokenInitMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     HUB_CONTRACT.save(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
-    let TokenInitMsg {
+    let InstantiateMsg {
         name,
         symbol,
         decimals,
-        initial_balances,
         hub_contract,
         marketing,
     } = msg;
@@ -49,20 +47,18 @@ pub fn instantiate(
         deps,
         env,
         info,
-        InstantiateMsg {
+        Cw20InstantiateMsg {
             name,
             symbol,
             decimals,
-            initial_balances,
+            initial_balances: vec![],
             mint: Some(MinterResponse {
                 minter: hub_contract,
                 cap: None,
             }),
             marketing,
         },
-    )?;
-
-    Ok(Response::default())
+    )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -135,8 +131,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default().add_attribute("migrate", "successful"))
+    cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::default())
 }
 
 fn execute_burn(
