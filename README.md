@@ -1,1 +1,3 @@
-# SatLayer LST
+# Cube by SatLayer
+
+> BABY LST on Babylon Genesis
