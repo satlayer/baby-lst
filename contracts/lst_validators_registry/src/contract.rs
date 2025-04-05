@@ -12,6 +12,7 @@ use lst_common::{
     hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
     to_checked_address,
     types::LstResult,
+    validate_migration,
     validator::{
         Config, ExecuteMsg, InstantiateMsg, PendingRedelegation, QueryMsg, Validator,
         ValidatorResponse,
@@ -89,6 +90,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default().add_attribute("migrate", "successful"))
 }
@@ -99,12 +102,9 @@ fn add_validator(
     info: MessageInfo,
     validator: Validator,
 ) -> LstResult<Response> {
-    let Config {
-        owner,
-        hub_contract,
-    } = CONFIG.load(deps.storage)?;
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
 
-    if !(info.sender == owner || info.sender == hub_contract) {
+    if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -114,7 +114,7 @@ fn add_validator(
         VALIDATOR_REGISTRY.save(deps.storage, info.address.as_bytes(), &validator)?;
     }
 
-    Ok(Response::default())
+    Ok(Response::default().add_attribute("validator", validator.address.to_string()))
 }
 
 fn remove_validator(
@@ -168,7 +168,7 @@ fn remove_validator(
                     deps.storage,
                     validator_operator_addr.as_bytes(),
                     &PendingRedelegation {
-                        src_validator: validator_addr.clone(),
+                        src_validator: validator_operator_addr.clone(),
                         redelegations,
                         timestamp: env.block.time.seconds(),
                     },
@@ -204,7 +204,7 @@ fn remove_validator(
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: hub_contract_string.clone(),
         msg: to_json_binary(&RedelegateProxy {
-            src_validator: validator_addr,
+            src_validator: validator_addr.clone(),
             redelegations,
         })?,
         funds: vec![],
@@ -219,7 +219,10 @@ fn remove_validator(
     // Only remove from registry after successful redelegation
     VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("validator", validator_addr)
+        .add_attribute("undelegation", delegation.amount.amount))
 }
 
 fn retry_redelegation(
@@ -232,7 +235,11 @@ fn retry_redelegation(
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
 
-    let pending = PENDING_REDELEGATIONS.load(deps.storage, validator_operator_addr.as_bytes())?;
+    let pending = PENDING_REDELEGATIONS
+        .may_load(deps.storage, validator_operator_addr.as_bytes())?
+        .ok_or(ContractError::Validator(
+            ValidatorError::PendingRedelegationNotFound,
+        ))?;
 
     // Check if enough time has passed since the last attempt
     let time_since_last_attempt = env.block.time.seconds() - pending.timestamp;
@@ -262,7 +269,9 @@ fn retry_redelegation(
     // Remove pending redelegation after successful retry
     PENDING_REDELEGATIONS.remove(deps.storage, validator_operator_addr.as_bytes());
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("redelegation", validator_addr))
 }
 
 // Update validator registry contract config. owner/hub_contract
@@ -281,6 +290,7 @@ fn update_config(
     if info.sender != owner_addr {
         return Err(ContractError::Unauthorized {});
     }
+    let mut res = Response::default();
 
     if let Some(owner) = owner {
         let owner_raw = to_checked_address(deps.as_ref(), owner.as_str())?;
@@ -288,6 +298,7 @@ fn update_config(
             old_config.owner = owner_raw;
             Ok(old_config)
         })?;
+        res = res.add_attribute("owner", owner);
     }
 
     if let Some(hub_contract) = hub_contract {
@@ -296,9 +307,10 @@ fn update_config(
             old_config.hub_contract = hub_addr_raw;
             Ok(old_config)
         })?;
+        res = res.add_attribute("hub", hub_contract);
     }
 
-    Ok(Response::default())
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -47,17 +47,10 @@ pub fn calculate_delegations(
             .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
         if amt_to_delegate.is_zero() {
-            break;
+            return Ok(delegations);
         }
     }
-
-    // check if the amt to delegate is completly delegated
-    // this is impossible unless the distribution algo is changed
-    if amt_to_delegate.is_zero() {
-        Ok(delegations)
-    } else {
-        Err(ValidatorError::DistributionFailed.into())
-    }
+    Err(ValidatorError::DistributionFailed.into())
 }
 
 pub fn calculate_undelegations(
@@ -115,12 +108,11 @@ pub fn calculate_undelegations(
                 .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
             if amt_to_undelegate.is_zero() {
-                break;
+                return Ok(undelegations);
             }
         }
     }
-
-    Ok(undelegations)
+    Err(ValidatorError::DistributionFailed.into())
 }
 
 // Splits coin evenly across validator after delegation/undelegation

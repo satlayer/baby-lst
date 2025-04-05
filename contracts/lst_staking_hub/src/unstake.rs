@@ -168,7 +168,6 @@ pub fn execute_process_undelegations(mut deps: DepsMut, env: Env) -> LstResult<R
 }
 
 /// Store undelegation wait list per each batch
-/// HashMap<user's address, <batch_id, requested_amount>
 /// Update the total lst token unstake request as well as for user in the batch
 fn update_unstake_batch_wait_list(
     deps: &mut DepsMut,

@@ -12,7 +12,7 @@ resolver = "2"
 [workspace.package]
 authors = ["Satlayer"]
 repository = "https://github.com/satlayer/satlayer-lst"
-version = "0.0.1"
+version = "1.0.0-alpha1"
 edition = "2021"
 
 [profile.release]
@@ -40,4 +40,4 @@ cw20 = "2.0.0"
 cosmos-sdk-proto = { version = "0.27.0", default-features = false, features = [
   "cosmwasm",
 ] }
-prost = {version = "0.13.5", default-features = false }
+prost = { version = "0.13.5", default-features = false }

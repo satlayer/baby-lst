@@ -35,6 +35,12 @@ pub enum ContractError {
 
     #[error("Fee rate must be less than 30%")]
     InvalidFeeRate {},
+
+    #[error("Migration failed: current version ({0}) is not older than new version ({1})")]
+    MigrationNotAllowed(String, String),
+
+    #[error("Invalid contract type")]
+    InvalidContractType,
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -60,6 +66,9 @@ pub enum ValidatorError {
 
     #[error("Invalid key")]
     InvalidKey,
+
+    #[error("Pending redelegation not found")]
+    PendingRedelegationNotFound,
 }
 
 #[derive(Error, Debug, PartialEq)]

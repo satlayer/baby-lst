@@ -12,6 +12,7 @@ pub const PARAMETERS: Item<Parameters> = Item::new(PARAMETERS_KEY);
 pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new(CURRENT_BATCH_KEY);
 pub const STATE: Item<State> = Item::new(STATE_KEY);
 
+/// HashMap<user's address, <batch_id, requested_amount>
 pub const UNSTAKE_WAIT_LIST: Map<(Addr, u64), Uint128> = Map::new(UNSTAKE_WAIT_LIST_KEY);
 pub const UNSTAKE_HISTORY: Map<u64, UnstakeHistory> = Map::new(UNSTAKE_HISTORY_KEY);
 

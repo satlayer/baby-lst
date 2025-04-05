@@ -9,7 +9,6 @@ use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use lst_common::hub::PendingDelegation;
 use lst_common::types::{LstResult, ProtoCoin, ResponseType, StdCoin};
-use lst_common::ContractError;
 use lst_common::{
     babylon_msg::{CosmosAny, MsgWrappedBeginRedelegate},
     errors::HubError,
@@ -17,6 +16,7 @@ use lst_common::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
 };
+use lst_common::{validate_migration, ContractError, MigrateMsg};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{
@@ -322,7 +322,7 @@ pub fn execute_redelegate_proxy(
         .validators_registry_contract
         .ok_or_else(|| ContractError::Hub(HubError::ValidatorRegistryNotSet))?;
 
-    if sender != validator_registry_addr && sender != config.owner {
+    if sender != validator_registry_addr {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -422,6 +422,14 @@ fn withdraw_all_rewards(
     }
 
     Ok(messages)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::default().add_attribute("migrate", "successful"))
 }
 
 fn prepare_wrapped_begin_redelegate_msg(
