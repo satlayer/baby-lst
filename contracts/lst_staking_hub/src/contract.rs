@@ -323,7 +323,7 @@ pub fn execute_redelegate_proxy(
         .validators_registry_contract
         .ok_or_else(|| ContractError::Hub(HubError::ValidatorRegistryNotSet))?;
 
-    if sender != validator_registry_addr && sender != config.owner {
+    if sender != validator_registry_addr {
         return Err(ContractError::Unauthorized {});
     }
 
