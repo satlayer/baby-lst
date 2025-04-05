@@ -10,8 +10,8 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-authors = ["Satlayer"]
-repository = "https://github.com/satlayer/satlayer-lst"
+authors = ["SatLayer"]
+repository = "https://github.com/satlayer/baby-lst"
 version = "1.0.0-alpha1"
 edition = "2021"
 

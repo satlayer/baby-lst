@@ -13,7 +13,7 @@ use lst_common::{
 use crate::{state::CONFIG, MAX_FEE_RATE};
 use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 
-const CONTRACT_NAME: &str = "crates.io:reward-dispatcher";
+const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]

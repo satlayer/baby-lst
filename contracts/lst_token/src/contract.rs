@@ -24,7 +24,7 @@ use lst_common::hub::ExecuteMsg::CheckSlashing;
 
 use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
 
-const CONTRACT_NAME: &str = "crates.io:satlayer-lst";
+const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
