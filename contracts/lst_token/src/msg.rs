@@ -1,5 +1,4 @@
 use cosmwasm_schema::cw_serde;
-use cw20::Cw20Coin;
 use cw20_base::msg::InstantiateMarketingInfo;
 
 #[cw_serde]

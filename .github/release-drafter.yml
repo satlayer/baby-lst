@@ -1,0 +1,11 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+sort-by: title
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+change-title-escapes: '\<*_&'
+version-resolver:
+  minor:
+    labels: ["s/feat"]
+  default: patch
+template: |
+  $CHANGES
