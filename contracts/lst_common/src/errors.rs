@@ -106,4 +106,7 @@ pub enum HubError {
 
     #[error("User allowance to hub contractless than the amount to unstake")]
     InsufficientAllowance,
+
+    #[error("LST token already set")]
+    LstTokenAlreadySet,
 }

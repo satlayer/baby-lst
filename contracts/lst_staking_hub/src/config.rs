@@ -33,7 +33,14 @@ pub fn execute_update_config(
     }
 
     if let Some(token) = lst_token {
-        config.lst_token = Some(to_checked_address(deps.as_ref(), &token)?);
+        let new_token_addr = to_checked_address(deps.as_ref(), &token)?;
+        if let Some(existing_token) = &config.lst_token {
+            if existing_token != &new_token_addr {
+                return Err(ContractError::Hub(HubError::LstTokenAlreadySet));
+            }
+        } else {
+            config.lst_token = Some(new_token_addr);
+        }
     }
 
     if let Some(registry) = validator_registry {
