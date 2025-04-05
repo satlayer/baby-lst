@@ -28,6 +28,8 @@ pub const NATIVE_DENOM: &str = "ubbn";
 pub const FEE_ADDR: &str = "fee_receiver";
 pub const UNBOUND_TIME: u64 = 300;
 pub const VALIDATOR_ADDR: &str = "validator";
+pub const STAKING_EPOCH_BLOCKS: u64 = 360;
+pub const STAKING_EPOCH_START_BLOCK: u64 = 1;
 
 #[derive(Eq, PartialEq, Hash)]
 pub enum ContractType {
@@ -199,6 +201,13 @@ impl TestContext {
         ))
     }
 
+    pub fn update_block(&mut self, height: u64, add_time_secs: u64) {
+        self.app.update_block(|block| {
+            block.height += 10;
+            block.time = block.time.plus_seconds(100);
+        });
+    }
+
     pub fn mock_token_contract(&self) -> Box<dyn Contract<Empty>> {
         Box::new(ContractWrapper::new(
             token::execute,
@@ -223,7 +232,13 @@ impl TestContext {
         ))
     }
 
-    pub fn init_hub_contract(&mut self, epoch_length: u64, unstaking_period: u64) -> &mut Self {
+    pub fn init_hub_contract(
+        &mut self,
+        epoch_length: u64,
+        unstaking_period: u64,
+        staking_epoch_length_blocks: u64,
+        staking_epoch_start_block_height: u64,
+    ) -> &mut Self {
         let code_id = self.store_code(self.mock_hub_contract());
         self.init_contract(
             ContractType::Hub,
@@ -232,6 +247,8 @@ impl TestContext {
                 epoch_length,
                 staking_coin_denom: self.denom.clone(),
                 unstaking_period,
+                staking_epoch_length_blocks,
+                staking_epoch_start_block_height,
             },
             &[],
         );
@@ -240,8 +257,8 @@ impl TestContext {
 
     pub fn init_reward_contract(
         &mut self,
-        satlayer_fee_addr: String,
-        satlayer_fee_rate: Decimal,
+        fee_addr: String,
+        fee_rate: Decimal,
         hub_addr: String,
     ) -> &mut Self {
         let code_id = self.store_code(self.mock_reward_contract());
@@ -250,8 +267,8 @@ impl TestContext {
             code_id,
             &RewardInstantiateMsg {
                 reward_denom: self.denom.clone(),
-                satlayer_fee_addr,
-                satlayer_fee_rate,
+                fee_addr,
+                fee_rate,
                 hub_contract: hub_addr,
             },
             &[],

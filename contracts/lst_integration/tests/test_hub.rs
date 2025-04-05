@@ -4,18 +4,29 @@ use cosmwasm_std::{coin, Decimal, Uint128};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_multi_test::IntoBech32;
 use lst_common::{
-    hub::{AllHistoryResponse, QueryMsg as HubQueryMsg, State, WithdrawableUnstakedResponse},
+    hub::{
+        AllHistoryResponse, QueryMsg as HubQueryMsg, State, UnstakeRequestsResponses,
+        WithdrawableUnstakedResponse,
+    },
     validator::{QueryMsg as ValidatorQueryMsg, Validator, ValidatorResponse},
     ContractError,
 };
-use setup::{ContractType, TestContext, FEE_ADDR, NATIVE_DENOM, UNBOUND_TIME, VALIDATOR_ADDR};
+use setup::{
+    ContractType, TestContext, FEE_ADDR, NATIVE_DENOM, STAKING_EPOCH_BLOCKS,
+    STAKING_EPOCH_START_BLOCK, UNBOUND_TIME, VALIDATOR_ADDR,
+};
 
 use lst_common::hub::ExecuteMsg as HubExecuteMsg;
 
 pub const DELEGATOR: &str = "Delegator";
 
 fn setup_contracts(mut ctx: TestContext) -> TestContext {
-    ctx.init_hub_contract(100, UNBOUND_TIME);
+    ctx.init_hub_contract(
+        100,
+        UNBOUND_TIME,
+        STAKING_EPOCH_BLOCKS,
+        STAKING_EPOCH_START_BLOCK,
+    );
 
     let hub_addr = ctx
         .get_contract_addr(ContractType::Hub)
@@ -56,6 +67,33 @@ fn setup_contracts(mut ctx: TestContext) -> TestContext {
     ctx
 }
 
+fn stake(ctx: &mut TestContext, amt: u128, delegator: impl Into<String>) {
+    ctx.execute(
+        ContractType::Hub,
+        Some(TestContext::make_addr(delegator.into().as_str())),
+        &HubExecuteMsg::Stake {},
+        &[coin(amt, NATIVE_DENOM)],
+    )
+    .unwrap();
+}
+
+fn query_hub_state(ctx: &mut TestContext) -> State {
+    ctx.query(ContractType::Hub, &HubQueryMsg::State {})
+        .unwrap()
+}
+
+fn query_total_validator_delegation(ctx: &mut TestContext) -> u128 {
+    ctx.query::<Vec<ValidatorResponse>>(
+        ContractType::ValidatorRegistry,
+        &ValidatorQueryMsg::ValidatorsDelegation {},
+    )
+    .unwrap()
+    .into_iter()
+    .fold(0u128, |acc, val| acc + val.total_delegated.u128())
+
+    // delegations.into_iter
+}
+
 fn setup_test() -> TestContext {
     let mut ctx = TestContext::new();
     ctx = setup_contracts(ctx);
@@ -73,28 +111,23 @@ fn test_staking_flow() {
     ctx.mint_token(TestContext::make_addr(DELEGATOR), initial_balance);
 
     // send stake message
-    ctx.execute(
-        ContractType::Hub,
-        Some(TestContext::make_addr(DELEGATOR)),
-        &HubExecuteMsg::Stake {},
-        &[coin(delegated_amt, NATIVE_DENOM)],
-    )
-    .unwrap();
+    stake(&mut ctx, delegated_amt, DELEGATOR);
 
     // hub contract state
-    let state: State = ctx
-        .query(ContractType::Hub, &HubQueryMsg::State {})
-        .unwrap();
-
-    println!("these are the state: {:?}", state);
+    let hub_state = query_hub_state(&mut ctx);
+    assert_eq!(delegated_amt, hub_state.total_staked_amount.u128());
+    println!("these are the state: {:?}", hub_state);
 
     // query validator delegation
-    let delegations = ctx.query::<Vec<ValidatorResponse>>(
-        ContractType::ValidatorRegistry,
-        &ValidatorQueryMsg::ValidatorsDelegation {},
+    let val_delegations = query_total_validator_delegation(&mut ctx);
+    assert_eq!(
+        delegated_amt, val_delegations,
+        "Delegated amt staked to validators"
     );
 
-    println!("these are validator: {:?}", delegations);
+    println!("these are validator: {:?}", val_delegations);
+
+    ctx.update_block(STAKING_EPOCH_BLOCKS, 60 * 10);
 
     // send increase allowance msg to token contract
     ctx.execute(
@@ -124,6 +157,17 @@ fn test_staking_flow() {
         block.time = block.time.plus_seconds(100);
     });
 
+    let all_histories: AllHistoryResponse = ctx
+        .query(
+            ContractType::Hub,
+            &HubQueryMsg::AllHistory {
+                start_from: Some(1),
+                limit: Some(20),
+            },
+        )
+        .unwrap();
+    println!("thse are the all-histories hehhehhhehe {:?}", all_histories);
+
     // send unstake message
     ctx.execute(
         ContractType::Hub,
@@ -134,6 +178,31 @@ fn test_staking_flow() {
         &[],
     )
     .unwrap();
+
+    let user_history: UnstakeRequestsResponses = ctx
+        .query(
+            ContractType::Hub,
+            &HubQueryMsg::UnstakeRequests {
+                address: TestContext::make_addr(DELEGATOR).to_string(),
+            },
+        )
+        .unwrap();
+
+    println!("thse are the user histories {:?}", user_history);
+
+    let all_histories: AllHistoryResponse = ctx
+        .query(
+            ContractType::Hub,
+            &HubQueryMsg::AllHistory {
+                start_from: Some(1),
+                limit: Some(20),
+            },
+        )
+        .unwrap();
+    println!(
+        "thse are the all-histories after unstake {:?}",
+        all_histories
+    );
 
     // update the block time to more than unbound time
     ctx.app.update_block(|block| {
