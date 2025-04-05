@@ -24,9 +24,6 @@ use lst_common::hub::ExecuteMsg::CheckSlashing;
 
 use crate::{msg::TokenInitMsg, state::HUB_CONTRACT};
 
-const CONTRACT_NAME: &str = "crates.io:satlayer-lst";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -34,8 +31,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> Result<Response, ContractError> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
-
     HUB_CONTRACT.save(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
     let TokenInitMsg {
