@@ -65,7 +65,7 @@ pub fn execute_stake(
     let (slashing_events, _) = check_slashing(&mut deps, &env, &mut state)?;
     events.extend(slashing_events);
 
-    let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap_or_default();
+    let mut total_supply = query_total_lst_token_issued(deps.as_ref()).unwrap();
 
     let mint_amount = match stake_type {
         StakeType::LSTMint => decimal_division(payment.amount, state.lst_exchange_rate),
