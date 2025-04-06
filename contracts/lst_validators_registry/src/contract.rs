@@ -135,9 +135,10 @@ fn remove_validator(
 
     let validators = query_validators(deps.as_ref())?;
 
-    if validators.is_empty() {
+    if validators.len() == 1 {
         return Err(ValidatorError::LastValidatorRemovalNotAllowed.into());
     }
+
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
     VALIDATOR_EXCLUDE_LIST.save(deps.storage, validator_operator_addr.as_bytes(), &true)?;
@@ -210,33 +211,25 @@ fn update_config(
     owner: Option<String>,
     hub_contract: Option<String>,
 ) -> LstResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let owner_addr = config.owner;
-
-    if info.sender != owner_addr {
+    let mut config = CONFIG.load(deps.storage)?;
+    
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
+
     let mut res = Response::default();
 
     if let Some(owner) = owner {
-        let owner_raw = to_checked_address(deps.as_ref(), owner.as_str())?;
-        CONFIG.update(deps.storage, |mut old_config| -> LstResult<Config> {
-            old_config.owner = owner_raw;
-            Ok(old_config)
-        })?;
+        config.owner = to_checked_address(deps.as_ref(), owner.as_str())?;
         res = res.add_attribute("owner", owner);
     }
 
     if let Some(hub_contract) = hub_contract {
-        let hub_addr_raw = to_checked_address(deps.as_ref(), hub_contract.as_str())?;
-        CONFIG.update(deps.storage, |mut old_config| -> LstResult<Config> {
-            old_config.hub_contract = hub_addr_raw;
-            Ok(old_config)
-        })?;
+        config.hub_contract = to_checked_address(deps.as_ref(), hub_contract.as_str())?;
         res = res.add_attribute("hub", hub_contract);
     }
 
+    CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }
 
