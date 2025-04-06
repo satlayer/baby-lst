@@ -24,7 +24,7 @@ use crate::{
     helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
     state::{
         CONFIG, LAST_REDELEGATIONS, PENDING_REDELEGATIONS, REDELEGATION_COOLDOWN,
-        VALIDATOR_EXCLUDELIST, VALIDATOR_REGISTRY,
+        VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY,
     },
 };
 
@@ -112,7 +112,7 @@ fn add_validator(
     let validator_info = fetch_validator_info(&deps.querier, validator_addr)?;
     if let Some(info) = validator_info {
         VALIDATOR_REGISTRY.save(deps.storage, info.address.as_bytes(), &validator)?;
-        VALIDATOR_EXCLUDELIST.remove(deps.storage, info.address.as_bytes());
+        VALIDATOR_EXCLUDE_LIST.remove(deps.storage, info.address.as_bytes());
     }
 
     Ok(Response::default().add_attribute("validator", validator.address.to_string()))
@@ -140,7 +140,7 @@ fn remove_validator(
     }
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
-    VALIDATOR_EXCLUDELIST.save(deps.storage, validator_operator_addr.as_bytes(), &true)?;
+    VALIDATOR_EXCLUDE_LIST.save(deps.storage, validator_operator_addr.as_bytes(), &true)?;
 
     let last_try = LAST_REDELEGATIONS
         .load(deps.storage, validator_addr.as_bytes())
@@ -328,12 +328,12 @@ fn query_get_redelegations(
     let mut remove_list: Vec<String> = Vec::new();
 
     for del in delegations.iter() {
-        if !VALIDATOR_EXCLUDELIST
+        if !VALIDATOR_EXCLUDE_LIST
             .load(deps.storage, del.0.clone().as_bytes())
             .unwrap_or(false)
         {
             if VALIDATOR_REGISTRY
-                .load(deps.storage, &del.0.as_bytes())
+                .load(deps.storage, del.0.as_bytes())
                 .is_ok()
             {
                 continue_list.push(del.0.clone());
@@ -344,7 +344,7 @@ fn query_get_redelegations(
     }
 
     let stake_rebalance = pending_stake
-        .checked_div((continue_list.len() as u128))
+        .checked_div(continue_list.len() as u128)
         .unwrap();
     let unstake_rebalnace = pending_unstake
         .checked_div((continue_list.len() as u128) + (remove_list.len() as u128))
@@ -353,8 +353,8 @@ fn query_get_redelegations(
     let mut redelegations = HashMap::<String, ReDelegation>::new();
 
     for add in continue_list {
-        let delegate = delegations.get(&add).unwrap_or(&0_u128).clone();
-        let total_stake = delegate.checked_add(stake_rebalance.into()).unwrap();
+        let delegate = *delegations.get(&add).unwrap_or(&0_u128);
+        let total_stake = delegate.checked_add(stake_rebalance).unwrap();
         let (action, amount) = if unstake_rebalnace > total_stake {
             (1_u8, unstake_rebalnace)
         } else {
@@ -362,14 +362,14 @@ fn query_get_redelegations(
         };
         let redelegation = ReDelegation {
             validator: add.clone(),
-            amount: amount,
-            action: action,
+            amount,
+            action,
         };
         redelegations.insert(add, redelegation);
     }
 
     for remove in remove_list {
-        let delegate = delegations.get(&remove).unwrap_or(&0_u128).clone();
+        let delegate = *delegations.get(&remove).unwrap_or(&0_u128);
         let redelegation = ReDelegation {
             validator: remove.clone(),
             amount: delegate + unstake_rebalnace,
@@ -389,13 +389,12 @@ fn query_active_validators(deps: Deps) -> Vec<String> {
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<StdResult<Vec<Vec<u8>>>>()
         .unwrap();
-    return keys
-        .iter()
+    keys.iter()
         .filter_map(|k| {
-            if VALIDATOR_EXCLUDELIST.has(deps.storage, k) {
+            if VALIDATOR_EXCLUDE_LIST.has(deps.storage, k) {
                 return None;
             }
-            return String::from_utf8(k.clone()).ok();
+            String::from_utf8(k.clone()).ok()
         })
-        .collect::<Vec<String>>();
+        .collect::<Vec<String>>()
 }

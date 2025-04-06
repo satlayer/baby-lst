@@ -45,10 +45,12 @@ pub enum QueryMsg {
     #[returns(Config)]
     Config {},
     #[returns(Vec<ReDelegation>)]
-    GetRedelegations {pending_stake:u128,pending_unstake:u128},
+    GetRedelegations {
+        pending_stake: u128,
+        pending_unstake: u128,
+    },
     #[returns(Vec<String>)]
     GetActiveValidators {},
-
 }
 
 #[cw_serde]
@@ -81,6 +83,6 @@ pub struct PendingRedelegation {
 #[cw_serde]
 pub struct ReDelegation {
     pub validator: String,
-    pub amount:u128,
-    pub action:u8,
+    pub amount: u128,
+    pub action: u8,
 }
