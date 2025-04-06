@@ -11,7 +11,7 @@
   ],
   "properties": {
     "epoch_length": {
-      "description": "Time to batch the unstake request in the staking hub. Should match the epoch length of chain",
+      "description": "Time to batch the unstake request in the staking hub. Longer epoch length means user would have to wait longer to unstake.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
@@ -27,7 +27,7 @@
       "minimum": 0.0
     },
     "staking_epoch_start_block_height": {
-      "description": "Staking epoch start block height, this is inclusive in the epoch",
+      "description": "Staking epoch start block height, this is inclusive in the epoch. This height must match the starting height of the epoch of the chain.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

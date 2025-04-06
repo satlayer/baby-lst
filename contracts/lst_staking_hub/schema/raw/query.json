@@ -17,7 +17,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Retursn the state variables in the contract",
+      "description": "Returns the state variables in the contract. This method returns the actual exchange rate by dynamic caclulation rather than the stored one in the contract.",
       "type": "object",
       "required": [
         "state"

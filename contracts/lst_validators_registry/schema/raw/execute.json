@@ -81,6 +81,28 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Retry redelegation for a validator",
+      "type": "object",
+      "required": [
+        "retry_redelegation"
+      ],
+      "properties": {
+        "retry_redelegation": {
+          "type": "object",
+          "required": [
+            "validator"
+          ],
+          "properties": {
+            "validator": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
