@@ -43,7 +43,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - run: ./scripts/generate_schema.sh lst_token lst_validators_registry lst_reward_dispatcher lst_staking_hub
+      - name: Generate schema for all contracts
+        working-directory: contracts
+        run: ../scripts/generate_schema.sh lst_token lst_validators_registry lst_reward_dispatcher lst_staking_hub
 
       - uses: tj-actions/verify-changed-files@a1c6acee9df209257a246f2cc6ae8cb6581c1edf # v20
         with:
