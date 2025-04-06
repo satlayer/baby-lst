@@ -200,21 +200,21 @@ fn remove_validator(
 
     let hub_contract_string = hub_contract.to_string();
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract_string.clone(),
-        msg: to_json_binary(&RedelegateProxy {
-            src_validator: validator_addr.clone(),
-            redelegations,
-        })?,
-        funds: vec![],
-    }));
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract_string,
-        msg: to_json_binary(&UpdateGlobalIndex {})?,
-        funds: vec![],
-    }));
+    let messages: Vec<CosmosMsg> = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_contract_string.clone(),
+            msg: to_json_binary(&RedelegateProxy {
+                src_validator: validator_addr.clone(),
+                redelegations,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_contract_string,
+            msg: to_json_binary(&UpdateGlobalIndex {})?,
+            funds: vec![],
+        }),
+    ];
 
     // Only remove from registry after successful redelegation
     VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
@@ -250,21 +250,21 @@ fn retry_redelegation(
 
     let hub_contract_string = hub_contract.to_string();
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract_string.clone(),
-        msg: to_json_binary(&RedelegateProxy {
-            src_validator: pending.src_validator,
-            redelegations: pending.redelegations,
-        })?,
-        funds: vec![],
-    }));
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract_string,
-        msg: to_json_binary(&UpdateGlobalIndex {})?,
-        funds: vec![],
-    }));
+    let messages: Vec<CosmosMsg> = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_contract_string.clone(),
+            msg: to_json_binary(&RedelegateProxy {
+                src_validator: pending.src_validator,
+                redelegations: pending.redelegations,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_contract_string,
+            msg: to_json_binary(&UpdateGlobalIndex {})?,
+            funds: vec![],
+        }),
+    ];
 
     // Remove pending redelegation after successful retry
     PENDING_REDELEGATIONS.remove(deps.storage, validator_operator_addr.as_bytes());
