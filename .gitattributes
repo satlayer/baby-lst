@@ -1,0 +1,3 @@
+# Mark schema JSON files as generated
+contracts/*/schema/*.json linguist-generated=true
+contracts/*/schema/raw/*.json linguist-generated=true 
