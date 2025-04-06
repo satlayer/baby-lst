@@ -85,17 +85,14 @@ pub fn instantiate(
         last_processed_batch: 0u64,
     };
     STATE.save(deps.storage, &state)?;
-    let mut events: Vec<Event> = vec![];
-    events.push(
+    let events: Vec<Event> = vec![
         Event::new(LST_EXCHANGE_RATE_UPDATED)
             .add_attribute(OLD_RATE, Decimal::zero().to_string())
             .add_attribute(NEW_RATE, Decimal::one().to_string()),
-    );
-    events.push(
         Event::new(TOTAL_STAKED_AMOUNT_UPDATED)
             .add_attribute(OLD_AMOUNT, Uint128::zero().to_string())
             .add_attribute(NEW_AMOUNT, Uint128::zero().to_string()),
-    );
+    ];
 
     // Instantiate parameters
     let params = Parameters {

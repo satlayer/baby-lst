@@ -118,7 +118,7 @@ fn check_for_unstake_batch_epoch_completion(
     let old_state = state.clone();
 
     // check if slashing has occurred and update the exchange rate
-    let (slashing_events, _) = check_slashing(deps, &env, &mut state)?;
+    let (slashing_events, _) = check_slashing(deps, env, &mut state)?;
     events.extend(slashing_events);
 
     let current_time = env.block.time.seconds();
@@ -346,10 +346,10 @@ fn process_withdraw_rate(
             history.lst_withdraw_rate,
             total_unstaked_amount,
             slashed_amount,
-        );
+        )?;
 
         let mut unstake_history_batch = history;
-        unstake_history_batch.lst_applied_exchange_rate = new_withdraw_rate.unwrap();
+        unstake_history_batch.lst_applied_exchange_rate = new_withdraw_rate;
         unstake_history_batch.released = true;
         UNSTAKE_HISTORY.save(deps.storage, batch_id, &unstake_history_batch)?;
         state.last_processed_batch = batch_id;
@@ -439,11 +439,9 @@ fn calculate_new_withdraw_rate(
     };
 
     // Calculate and return new rate
-    Ok(
-        Decimal256::from_ratio(actual_unstaked_amount_of_batch, burnt_amount_of_batch)
-            .try_into()
-            .map_err(|e: DecimalRangeExceeded| ContractError::Overflow(e.to_string()))?,
-    )
+    Decimal256::from_ratio(actual_unstaked_amount_of_batch, burnt_amount_of_batch)
+        .try_into()
+        .map_err(|e: DecimalRangeExceeded| ContractError::Overflow(e.to_string()))
 }
 
 // Process the withdrawal of unstaked tokens by users

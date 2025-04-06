@@ -32,8 +32,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      # TODO uncomment this when we have fixed all clippy warnings
-      - run: cargo clippy # -- -D warnings
+      - run: cargo clippy -- -D warnings
 
   schema:
     name: Schema

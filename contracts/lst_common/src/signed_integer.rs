@@ -19,8 +19,8 @@ impl SignedInt {
         let subtrahend_256: Uint256 = subtrahend.into();
         let subtraction_256 = minuend_256.checked_sub(subtrahend_256);
 
-        if subtraction_256.is_ok() {
-            return SignedInt(Uint128::try_from(subtraction_256.unwrap()).unwrap(), false);
+        if let Ok(result) = subtraction_256 {
+            return SignedInt(Uint128::try_from(result).unwrap(), false);
         }
 
         // If subtraction fails, calculate the negative value
