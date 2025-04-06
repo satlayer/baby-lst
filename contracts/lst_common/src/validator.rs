@@ -33,9 +33,6 @@ pub enum ExecuteMsg {
         /// Address of the hub contract
         hub_contract: Option<String>,
     },
-
-    /// Retry redelegation for a validator
-    RetryRedelegation { validator: String },
 }
 
 #[cw_serde]
@@ -47,8 +44,11 @@ pub enum QueryMsg {
     /// Return the configuration parameters of the contract
     #[returns(Config)]
     Config {},
-    #[returns(Vec<PendingRedelegation>)]
-    PendingRedelegations {},
+    #[returns(Vec<ReDelegation>)]
+    GetRedelegations {pending_stake:u128,pending_unstake:u128},
+    #[returns(Vec<String>)]
+    GetActiveValidators {},
+
 }
 
 #[cw_serde]
@@ -76,4 +76,11 @@ pub struct PendingRedelegation {
     pub src_validator: String,
     pub redelegations: Vec<(String, Coin)>,
     pub timestamp: u64,
+}
+
+#[cw_serde]
+pub struct ReDelegation {
+    pub validator: String,
+    pub amount:u128,
+    pub action:u8,
 }
