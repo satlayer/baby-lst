@@ -21,9 +21,10 @@ use crate::{
     contract::check_slashing,
     math::{decimal_multiplication, decimal_multiplication_256},
     state::{
-        get_finished_amount, get_finished_amount_for_batches, read_unstake_history,
-        remove_unstake_wait_list, update_pending_delegation_amount, update_state, UnstakeType,
-        CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY, UNSTAKE_WAIT_LIST,
+        get_finished_amount, get_finished_amount_for_batches, get_pending_delegation_amount,
+        read_unstake_history, remove_unstake_wait_list, update_pending_delegation_amount,
+        update_state, UnstakeType, CONFIG, CURRENT_BATCH, PARAMETERS, STATE, UNSTAKE_HISTORY,
+        UNSTAKE_WAIT_LIST,
     },
 };
 
@@ -303,8 +304,12 @@ pub fn execute_process_withdraw_requests(mut deps: DepsMut, env: Env) -> LstResu
         .querier
         .query_balance(&env.contract.address, &*params.staking_coin_denom)?
         .amount;
+    let (pending_staking_amount, _) = get_pending_delegation_amount(deps.as_ref(), &env)?;
+    let actual_free_balance = hub_balance
+        .checked_sub(pending_staking_amount)
+        .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
-    process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
+    process_withdraw_rate(&mut deps, unstake_cutoff_time, actual_free_balance)?;
 
     Ok(Response::new())
 }
@@ -333,7 +338,7 @@ fn process_withdraw_rate(
     // Calculate total unstaked amount
     let total_unstaked_amount = calculate_newly_added_unstaked_amount(histories.clone());
 
-    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    let balance_change = SignedInt::from_subtraction(hub_balance, state.unclaimed_unstaked_balance);
     let actual_unstaked_amount = balance_change.0;
 
     let slashed_amount =
@@ -484,8 +489,13 @@ fn execute_withdraw_unstaked_impl(
         .query_balance(&env.contract.address, &*params.staking_coin_denom)?
         .amount;
 
+    let (pending_staking_amount, _) = get_pending_delegation_amount(deps.as_ref(), &env)?;
+    let actual_free_balance = hub_balance
+        .checked_sub(pending_staking_amount)
+        .map_err(|e| ContractError::Overflow(e.to_string()))?;
+
     // Process withdrawal rate first (MUST be before get_finished_amount)
-    process_withdraw_rate(&mut deps, unstake_cutoff_time, hub_balance)?;
+    process_withdraw_rate(&mut deps, unstake_cutoff_time, actual_free_balance)?;
 
     // Get withdrawable amount after rates are updated
     let (withdraw_amount, deprecated_batches) = match batch_ids {
@@ -503,12 +513,12 @@ fn execute_withdraw_unstaked_impl(
     // Clean up and state update
     remove_unstake_wait_list(deps.storage, deprecated_batches, info.sender.clone())?;
 
-    let prev_balance = hub_balance
+    let unclaimed_unstaked_balance = actual_free_balance
         .checked_sub(withdraw_amount)
         .map_err(|e| ContractError::Overflow(e.to_string()))?;
 
     STATE.update(deps.storage, |mut state| -> LstResult<_> {
-        state.prev_hub_balance = prev_balance;
+        state.unclaimed_unstaked_balance = unclaimed_unstaked_balance;
         Ok(state)
     })?;
 

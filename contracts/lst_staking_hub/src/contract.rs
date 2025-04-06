@@ -80,7 +80,7 @@ pub fn instantiate(
         lst_exchange_rate: Decimal::one(),
         total_staked_amount: Uint128::zero(),
         last_index_modification: env.block.time.seconds(),
-        prev_hub_balance: Uint128::zero(),
+        unclaimed_unstaked_balance: Uint128::zero(),
         last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
     };
