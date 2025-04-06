@@ -212,7 +212,7 @@ fn update_config(
     hub_contract: Option<String>,
 ) -> LstResult<Response> {
     let mut config = CONFIG.load(deps.storage)?;
-    
+
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -303,78 +303,68 @@ fn query_get_redelegations(
     pending_stake: u128,
     pending_unstake: u128,
 ) -> LstResult<Vec<ReDelegation>> {
-    let mut delegations = HashMap::<String, u128>::new();
+    let Config { hub_contract, .. } = CONFIG.load(deps.storage)?;
 
-    let Config {
-        owner: _,
-        hub_contract,
-    } = CONFIG.load(deps.storage)?;
-
-    deps.querier
+    // Get current delegations
+    let delegations: HashMap<String, u128> = deps
+        .querier
         .query_all_delegations(&hub_contract)?
         .into_iter()
-        .for_each(|delegation| {
-            delegations.insert(delegation.validator, delegation.amount.amount.into());
-        });
+        .map(|d| (d.validator, d.amount.amount.into()))
+        .collect();
 
     let mut continue_list: Vec<String> = Vec::new();
     let mut remove_list: Vec<String> = Vec::new();
 
-    for del in delegations.iter() {
-        if !VALIDATOR_EXCLUDE_LIST
-            .load(deps.storage, del.0.clone().as_bytes())
+    for (validator, _) in &delegations {
+        if VALIDATOR_EXCLUDE_LIST
+            .load(deps.storage, validator.as_bytes())
             .unwrap_or(false)
         {
-            if VALIDATOR_REGISTRY
-                .load(deps.storage, del.0.as_bytes())
-                .is_ok()
-            {
-                continue_list.push(del.0.clone());
-            }
-        } else {
-            remove_list.push(del.0.clone());
+            remove_list.push(validator.clone());
+        } else if VALIDATOR_REGISTRY
+            .load(deps.storage, validator.as_bytes())
+            .is_ok()
+        {
+            continue_list.push(validator.clone());
         }
     }
 
+    // Calculate rebalancing amounts
     let stake_rebalance = pending_stake
         .checked_div(continue_list.len() as u128)
         .unwrap();
-    let unstake_rebalnace = pending_unstake
-        .checked_div((continue_list.len() as u128) + (remove_list.len() as u128))
+    let unstake_rebalance = pending_unstake
+        .checked_div((continue_list.len() + remove_list.len()) as u128)
         .unwrap();
 
-    let mut redelegations = HashMap::<String, ReDelegation>::new();
-
-    for add in continue_list {
-        let delegate = *delegations.get(&add).unwrap_or(&0_u128);
+    // Generate redelegations for continuing validators
+    let continue_redelegations = continue_list.into_iter().map(|validator| {
+        let delegate = delegations.get(&validator).unwrap_or(&0);
         let total_stake = delegate.checked_add(stake_rebalance).unwrap();
-        let (action, amount) = if unstake_rebalnace > total_stake {
-            (1_u8, unstake_rebalnace)
+        let (action, amount) = if unstake_rebalance > total_stake {
+            (1_u8, unstake_rebalance)
         } else {
-            (0, (total_stake - unstake_rebalnace))
+            (0, total_stake - unstake_rebalance)
         };
-        let redelegation = ReDelegation {
-            validator: add.clone(),
+        ReDelegation {
+            validator,
             amount,
             action,
-        };
-        redelegations.insert(add, redelegation);
-    }
+        }
+    });
 
-    for remove in remove_list {
-        let delegate = *delegations.get(&remove).unwrap_or(&0_u128);
-        let redelegation = ReDelegation {
-            validator: remove.clone(),
-            amount: delegate + unstake_rebalnace,
+    // Generate redelegations for removed validators
+    let remove_redelegations = remove_list.into_iter().map(|validator| {
+        let delegate = delegations.get(&validator).unwrap_or(&0);
+        ReDelegation {
+            validator,
+            amount: delegate + unstake_rebalance,
             action: 1,
-        };
-        redelegations.insert(remove, redelegation);
-    }
+        }
+    });
 
-    Ok(redelegations
-        .values()
-        .cloned()
-        .collect::<Vec<ReDelegation>>())
+    Ok(continue_redelegations.chain(remove_redelegations).collect())
 }
 
 fn query_active_validators(deps: Deps) -> Vec<String> {
