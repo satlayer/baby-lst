@@ -840,8 +840,8 @@
         "last_processed_batch",
         "last_unbonded_time",
         "lst_exchange_rate",
-        "prev_hub_balance",
-        "total_staked_amount"
+        "total_staked_amount",
+        "unclaimed_unstaked_balance"
       ],
       "properties": {
         "last_index_modification": {
@@ -862,10 +862,10 @@
         "lst_exchange_rate": {
           "$ref": "#/definitions/Decimal"
         },
-        "prev_hub_balance": {
+        "total_staked_amount": {
           "$ref": "#/definitions/Uint128"
         },
-        "total_staked_amount": {
+        "unclaimed_unstaked_balance": {
           "$ref": "#/definitions/Uint128"
         }
       },
