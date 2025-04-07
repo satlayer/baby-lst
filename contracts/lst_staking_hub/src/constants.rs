@@ -20,3 +20,6 @@ pub const OLD_AMOUNT: &str = "old_amount";
 pub const NEW_AMOUNT: &str = "new_amount";
 
 pub const PENDING_DELEGATION_KEY: &str = "pending_delegation";
+
+// being generous on block time, to avoid staking epoch length being too short
+pub const AVERAGE_BLOCK_TIME: u64 = 20; // seconds

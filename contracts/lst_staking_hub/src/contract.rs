@@ -16,12 +16,12 @@ use lst_common::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
 };
-use lst_common::{validate_migration, ContractError, MigrateMsg};
+use lst_common::{ContractError, MigrateMsg};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{
-    LST_EXCHANGE_RATE_UPDATED, MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD, NEW_AMOUNT, NEW_RATE,
-    OLD_AMOUNT, OLD_RATE, TOTAL_STAKED_AMOUNT_UPDATED,
+    AVERAGE_BLOCK_TIME, LST_EXCHANGE_RATE_UPDATED, MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD,
+    NEW_AMOUNT, NEW_RATE, OLD_AMOUNT, OLD_RATE, TOTAL_STAKED_AMOUNT_UPDATED,
 };
 use crate::query::{
     query_config, query_current_batch, query_parameters, query_pending_delegation, query_state,
@@ -57,6 +57,11 @@ pub fn instantiate(
         return Err(ContractError::Hub(HubError::InvalidEpochLength));
     }
 
+    // epoch_length should be longer so that no two unstake requests can be processed in the same epoch
+    if msg.epoch_length < (msg.staking_epoch_length_blocks * AVERAGE_BLOCK_TIME) {
+        return Err(ContractError::Hub(HubError::InvalidEpochLength));
+    }
+
     // Validate unstaking period
     if msg.unstaking_period > MAX_UNSTAKING_PERIOD {
         return Err(ContractError::Hub(HubError::InvalidUnstakingPeriod));
@@ -80,7 +85,7 @@ pub fn instantiate(
         lst_exchange_rate: Decimal::one(),
         total_staked_amount: Uint128::zero(),
         last_index_modification: env.block.time.seconds(),
-        prev_hub_balance: Uint128::zero(),
+        unclaimed_unstaked_balance: Uint128::zero(),
         last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
     };
@@ -423,7 +428,7 @@ fn withdraw_all_rewards(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+    cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default().add_attribute("migrate", "successful"))

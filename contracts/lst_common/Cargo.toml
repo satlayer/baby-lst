@@ -18,5 +18,3 @@ cw20.workspace = true
 cw2.workspace = true
 cosmos-sdk-proto = { workspace = true }
 prost = { workspace = true, default-features = false }
-
-semver = "1"

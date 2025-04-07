@@ -77,6 +77,8 @@ pub enum QueryMsg {
         address: String,
     },
     /// Return all the unstaking requests for a user
+    /// Released amount can be withdrawn immediately
+    /// The requests for which unbonding time has passed can be delayed if the fast unbonding is not completed
     #[returns(UnstakeRequestsResponses)]
     UnstakeRequests {
         /// Address of the user
@@ -168,7 +170,7 @@ pub struct State {
     pub lst_exchange_rate: Decimal,
     pub total_staked_amount: Uint128,
     pub last_index_modification: u64,
-    pub prev_hub_balance: Uint128,
+    pub unclaimed_unstaked_balance: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }
