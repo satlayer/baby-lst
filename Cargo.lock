@@ -759,7 +759,6 @@ dependencies = [
  "cw20",
  "prost",
  "schemars",
- "semver",
  "serde",
  "thiserror 1.0.69",
 ]
