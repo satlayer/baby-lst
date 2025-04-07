@@ -33,9 +33,8 @@ pub enum ExecuteMsg {
         /// Address of the hub contract
         hub_contract: Option<String>,
     },
-
-    /// Retry redelegation for a validator
-    RetryRedelegation { validator: String },
+    /// Process redelegations if validator is removed
+    ProcessRedelegations {},
 }
 
 #[cw_serde]
@@ -47,8 +46,8 @@ pub enum QueryMsg {
     /// Return the configuration parameters of the contract
     #[returns(Config)]
     Config {},
-    #[returns(Vec<PendingRedelegation>)]
-    PendingRedelegations {},
+    #[returns(Vec<String>)]
+    ExcludeList,
 }
 
 #[cw_serde]

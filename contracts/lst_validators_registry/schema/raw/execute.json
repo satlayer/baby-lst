@@ -83,22 +83,14 @@
       "additionalProperties": false
     },
     {
-      "description": "Retry redelegation for a validator",
+      "description": "Process redelegations if validator is removed",
       "type": "object",
       "required": [
-        "retry_redelegation"
+        "process_redelegations"
       ],
       "properties": {
-        "retry_redelegation": {
+        "process_redelegations": {
           "type": "object",
-          "required": [
-            "validator"
-          ],
-          "properties": {
-            "validator": {
-              "type": "string"
-            }
-          },
           "additionalProperties": false
         }
       },

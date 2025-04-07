@@ -3,6 +3,12 @@
   "title": "QueryMsg",
   "oneOf": [
     {
+      "type": "string",
+      "enum": [
+        "exclude_list"
+      ]
+    },
+    {
       "description": "Return the delegation done by the hub contract in the network",
       "type": "object",
       "required": [
@@ -24,19 +30,6 @@
       ],
       "properties": {
         "config": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "pending_redelegations"
-      ],
-      "properties": {
-        "pending_redelegations": {
           "type": "object",
           "additionalProperties": false
         }
