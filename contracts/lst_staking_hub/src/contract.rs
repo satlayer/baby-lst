@@ -20,8 +20,8 @@ use lst_common::{validate_migration, ContractError, MigrateMsg};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{
-    LST_EXCHANGE_RATE_UPDATED, MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD, NEW_AMOUNT, NEW_RATE,
-    OLD_AMOUNT, OLD_RATE, TOTAL_STAKED_AMOUNT_UPDATED,
+    AVERAGE_BLOCK_TIME, LST_EXCHANGE_RATE_UPDATED, MAX_EPOCH_LENGTH, MAX_UNSTAKING_PERIOD,
+    NEW_AMOUNT, NEW_RATE, OLD_AMOUNT, OLD_RATE, TOTAL_STAKED_AMOUNT_UPDATED,
 };
 use crate::query::{
     query_config, query_current_batch, query_parameters, query_pending_delegation, query_state,
@@ -54,6 +54,11 @@ pub fn instantiate(
 
     // Validate epoch length
     if msg.epoch_length > MAX_EPOCH_LENGTH {
+        return Err(ContractError::Hub(HubError::InvalidEpochLength));
+    }
+
+    // epoch_length should be longer so that no two unstake requests can be processed in the same epoch
+    if msg.epoch_length < (msg.staking_epoch_length_blocks * AVERAGE_BLOCK_TIME) {
         return Err(ContractError::Hub(HubError::InvalidEpochLength));
     }
 
