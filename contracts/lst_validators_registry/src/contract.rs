@@ -8,21 +8,17 @@ use cw2::set_contract_version;
 
 use lst_common::{
     calculate_delegations,
-    errors::ValidatorError,
-    hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex},
+    hub::ExecuteMsg::RedelegateProxy,
     to_checked_address,
-    types::LstResult,
+    types::{LstResult, StdCoin},
     validate_migration,
-    validator::{
-        Config, ExecuteMsg, InstantiateMsg, PendingRedelegation, QueryMsg, Validator,
-        ValidatorResponse,
-    },
+    validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
     ContractError, MigrateMsg,
 };
 
 use crate::{
     helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
-    state::{CONFIG, PENDING_REDELEGATIONS, REDELEGATION_COOLDOWN, VALIDATOR_REGISTRY},
+    state::{CONFIG, VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY},
 };
 
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
@@ -77,14 +73,12 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     match msg {
         ExecuteMsg::AddValidator { validator } => add_validator(deps, env, info, validator),
-        ExecuteMsg::RemoveValidator { address } => remove_validator(deps, env, info, address),
+        ExecuteMsg::RemoveValidator { address } => remove_validator(deps, info, address),
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
         } => update_config(deps, env, info, owner, hub_contract),
-        ExecuteMsg::RetryRedelegation { validator } => {
-            retry_redelegation(deps, env, info, validator)
-        }
+        ExecuteMsg::ProcessRedelegations {} => process_redelegations(deps),
     }
 }
 
@@ -112,21 +106,20 @@ fn add_validator(
     let validator_info = fetch_validator_info(&deps.querier, validator_addr)?;
     if let Some(info) = validator_info {
         VALIDATOR_REGISTRY.save(deps.storage, info.address.as_bytes(), &validator)?;
+        VALIDATOR_EXCLUDE_LIST.remove(deps.storage, info.address);
     }
 
-    Ok(Response::default().add_attribute("validator", validator.address.to_string()))
+    Ok(Response::default()
+        .add_attribute("action", "add_validator")
+        .add_attribute("validator", validator.address.to_string()))
 }
 
 fn remove_validator(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     validator_addr: String,
 ) -> LstResult<Response> {
-    let Config {
-        owner,
-        hub_contract,
-    } = CONFIG.load(deps.storage)?;
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
 
     if info.sender != owner {
         return Err(ContractError::Unauthorized {});
@@ -135,143 +128,91 @@ fn remove_validator(
     let validator_operator_addr =
         convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
 
-    let validators = query_validators(deps.as_ref())?;
+    VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
+    VALIDATOR_EXCLUDE_LIST.save(deps.storage, validator_operator_addr, &true)?;
 
-    if validators.is_empty() {
-        return Err(ValidatorError::LastValidatorRemovalNotAllowed.into());
+    Ok(Response::new()
+        .add_attribute("action", "remove_validator")
+        .add_attribute("validator", validator_addr))
+}
+
+fn process_redelegations(deps: DepsMut) -> LstResult<Response> {
+    if VALIDATOR_EXCLUDE_LIST.is_empty(deps.storage) {
+        return Ok(Response::default());
     }
 
-    let delegation = match deps
-        .querier
-        .query_delegation(hub_contract.clone(), validator_addr.clone())?
-    {
-        Some(delegation) => {
-            if delegation.can_redelegate.amount >= delegation.amount.amount {
-                delegation
-            } else {
-                // Store pending redelegation if funds cannot be redelegated immediately
-                let delegations =
-                    calculate_delegations(delegation.amount.amount, validators.as_slice())?;
-                let redelegations = validators
+    let Config { hub_contract, .. } = CONFIG.load(deps.storage)?;
+
+    let mut delegations = HashMap::<String, StdCoin>::new();
+    deps.querier
+        .query_all_delegations(&hub_contract)?
+        .into_iter()
+        .for_each(|delegation| {
+            delegations.insert(delegation.validator, delegation.amount);
+        });
+
+    let mut active_validator_delegations: Vec<ValidatorResponse> = VALIDATOR_REGISTRY
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .map(|data| {
+            let val_address = data?.1.address;
+            Ok(ValidatorResponse {
+                address: val_address.clone(),
+                total_delegated: delegations
+                    .get(&val_address)
+                    .map(|coin| coin.amount)
+                    .unwrap_or(Uint128::zero()),
+            })
+        })
+        .collect::<LstResult<Vec<_>>>()?;
+    active_validator_delegations.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    VALIDATOR_EXCLUDE_LIST
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .for_each(|item| {
+            let (validator_addr, _) = item.ok().unwrap();
+
+            let validator_delegation = delegations.get(&validator_addr);
+
+            if let Some(delegation) = validator_delegation {
+                if delegation.amount.is_zero() {
+                    return;
+                }
+
+                let coin_distribution = calculate_delegations(
+                    delegation.amount,
+                    active_validator_delegations.as_slice(),
+                )
+                .unwrap();
+                let redelegations = active_validator_delegations
                     .iter()
-                    .zip(delegations.iter())
+                    .zip(coin_distribution.iter())
                     .filter(|(_, amt)| !amt.is_zero())
                     .map(|(val, amt)| {
                         (
                             val.address.clone(),
-                            Coin::new(amt.u128(), delegation.amount.denom.as_str()),
+                            Coin::new(amt.u128(), delegation.denom.as_str()),
                         )
                     })
                     .collect::<Vec<_>>();
 
-                PENDING_REDELEGATIONS.save(
-                    deps.storage,
-                    validator_operator_addr.as_bytes(),
-                    &PendingRedelegation {
-                        src_validator: validator_operator_addr.clone(),
+                let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: hub_contract.to_string(),
+                    msg: to_json_binary(&RedelegateProxy {
+                        src_validator: validator_addr.clone(),
                         redelegations,
-                        timestamp: env.block.time.seconds(),
-                    },
-                )?;
-
-                // Only remove from registry after storing pending redelegation
-                VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
-                return Ok(Response::new().add_attribute("status", "pending_redelegation"));
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                });
+                messages.push(msg);
             }
-        }
-        None => {
-            return Err(ValidatorError::ValidatorNotFound.into());
-        }
-    };
-
-    let delegations = calculate_delegations(delegation.amount.amount, validators.as_slice())?;
-
-    let redelegations = validators
-        .iter()
-        .zip(delegations.iter())
-        .filter(|(_, amt)| !amt.is_zero())
-        .map(|(val, amt)| {
-            (
-                val.address.clone(),
-                Coin::new(amt.u128(), delegation.amount.denom.as_str()),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let hub_contract_string = hub_contract.to_string();
-
-    let messages: Vec<CosmosMsg> = vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hub_contract_string.clone(),
-            msg: to_json_binary(&RedelegateProxy {
-                src_validator: validator_addr.clone(),
-                redelegations,
-            })?,
-            funds: vec![],
-        }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hub_contract_string,
-            msg: to_json_binary(&UpdateGlobalIndex {})?,
-            funds: vec![],
-        }),
-    ];
-
-    // Only remove from registry after successful redelegation
-    VALIDATOR_REGISTRY.remove(deps.storage, validator_operator_addr.as_bytes());
+        });
 
     Ok(Response::new()
         .add_messages(messages)
-        .add_attribute("validator", validator_addr)
-        .add_attribute("undelegation", delegation.amount.amount))
-}
-
-fn retry_redelegation(
-    deps: DepsMut,
-    env: Env,
-    _info: MessageInfo,
-    validator_addr: String,
-) -> LstResult<Response> {
-    let Config { hub_contract, .. } = CONFIG.load(deps.storage)?;
-    let validator_operator_addr =
-        convert_addr_by_prefix(validator_addr.as_str(), VALIDATOR_ADDR_PREFIX);
-
-    let pending = PENDING_REDELEGATIONS
-        .may_load(deps.storage, validator_operator_addr.as_bytes())?
-        .ok_or(ContractError::Validator(
-            ValidatorError::PendingRedelegationNotFound,
-        ))?;
-
-    // Check if enough time has passed since the last attempt
-    let time_since_last_attempt = env.block.time.seconds() - pending.timestamp;
-    if time_since_last_attempt < REDELEGATION_COOLDOWN {
-        // 24 hours
-        return Err(ValidatorError::RedelegationCooldownNotMet.into());
-    }
-
-    let hub_contract_string = hub_contract.to_string();
-
-    let messages: Vec<CosmosMsg> = vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hub_contract_string.clone(),
-            msg: to_json_binary(&RedelegateProxy {
-                src_validator: pending.src_validator,
-                redelegations: pending.redelegations,
-            })?,
-            funds: vec![],
-        }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hub_contract_string,
-            msg: to_json_binary(&UpdateGlobalIndex {})?,
-            funds: vec![],
-        }),
-    ];
-
-    // Remove pending redelegation after successful retry
-    PENDING_REDELEGATIONS.remove(deps.storage, validator_operator_addr.as_bytes());
-
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("redelegation", validator_addr))
+        .add_attribute("action", "process_redelegation"))
 }
 
 // Update validator registry contract config. owner/hub_contract
@@ -318,9 +259,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => query_config(deps),
         QueryMsg::ValidatorsDelegation {} => Ok(to_json_binary(&query_validators(deps)?)?),
-        QueryMsg::PendingRedelegations {} => {
-            Ok(to_json_binary(&query_pending_redelegations(deps)?)?)
-        }
+        QueryMsg::ExcludeList => Ok(to_json_binary(&query_exclude_list(deps)?)?),
     }
 }
 
@@ -358,15 +297,14 @@ fn query_validators(deps: Deps) -> LstResult<Vec<ValidatorResponse>> {
     Ok(responses)
 }
 
-fn query_pending_redelegations(deps: Deps) -> LstResult<Vec<(String, PendingRedelegation)>> {
-    let pending_redelegations: Vec<(String, PendingRedelegation)> = PENDING_REDELEGATIONS
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|item| {
-            let (key, value) = item?;
-            String::from_utf8(key)
-                .map_err(|_| ValidatorError::InvalidKey.into())
-                .map(|key_str| (key_str, value))
+fn query_exclude_list(deps: Deps) -> LstResult<Vec<String>> {
+    let excluded_lists = VALIDATOR_EXCLUDE_LIST
+        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|item| match item {
+            Ok(i) => Some(i),
+            Err(_) => None,
         })
-        .collect::<LstResult<Vec<_>>>()?;
-    Ok(pending_redelegations)
+        .collect::<Vec<String>>();
+
+    Ok(excluded_lists)
 }

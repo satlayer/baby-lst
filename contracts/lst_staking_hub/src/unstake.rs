@@ -1,7 +1,8 @@
 use cosmos_sdk_proto::cosmos::staking::v1beta1::MsgUndelegate;
 use cosmwasm_std::{
     attr, coins, to_json_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DecimalRangeExceeded,
-    DepsMut, Env, Event, MessageInfo, Response, Storage, Uint128, Uint256, WasmMsg,
+    DepsMut, Env, Event, MessageInfo, QueryRequest, Response, Storage, Uint128, Uint256, WasmMsg,
+    WasmQuery,
 };
 use cw20::{AllowanceResponse, BalanceResponse, Cw20QueryMsg};
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -13,7 +14,7 @@ use lst_common::{
     hub::{CurrentBatch, State, UnstakeHistory},
     to_checked_address,
     types::{LstResult, ProtoCoin, ResponseType},
-    validator::ValidatorResponse,
+    validator::{QueryMsg::ValidatorsDelegation, ValidatorResponse},
     ContractError, SignedInt,
 };
 
@@ -255,22 +256,22 @@ fn pick_validator_for_undelegation(
     claim: Uint128,
 ) -> LstResult<Vec<CosmosMsg>> {
     let params = PARAMETERS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let staking_coin_denom = params.staking_coin_denom;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let delegator_address = env.contract.address;
-    let all_delegations = deps.querier.query_all_delegations(&delegator_address)?;
 
-    let mut validators = all_delegations
-        .iter()
-        .map(|d| ValidatorResponse {
-            total_delegated: d.amount.amount,
-            address: d.validator.to_string(),
-        })
-        .collect::<Vec<ValidatorResponse>>();
+    let validators_registry_contract = config
+        .validators_registry_contract
+        .ok_or(HubError::ValidatorRegistryNotSet)?;
 
-    validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+    let validators: Vec<ValidatorResponse> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: validators_registry_contract.to_string(),
+            msg: to_json_binary(&ValidatorsDelegation {})?,
+        }))?;
 
     let undelegations = calculate_undelegations(claim, validators.clone())?;
 
