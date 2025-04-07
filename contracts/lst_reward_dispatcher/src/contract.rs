@@ -7,7 +7,7 @@ use lst_common::{
     hub::{is_paused, ExecuteMsg::StakeRewards},
     to_checked_address,
     types::LstResult,
-    validate_migration, ContractError, MigrateMsg,
+    ContractError, MigrateMsg,
 };
 
 use crate::{state::CONFIG, MAX_FEE_RATE};
@@ -179,7 +179,7 @@ fn query_config(deps: Deps) -> LstResult<Config> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response> {
-    validate_migration(deps.as_ref(), CONTRACT_NAME, CONTRACT_VERSION)?;
+    cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default().add_attribute("migrate", "successful"))
