@@ -14,7 +14,7 @@ library = []
 
 
 [dependencies]
-lst_common = { path = "../lst_common", default-features = false }
+lst_common = { path = "../../packages/lst_common" }
 
 cosmwasm-schema.workspace = true
 cosmwasm-std.workspace = true

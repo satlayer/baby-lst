@@ -21,6 +21,6 @@ thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 schemars.workspace = true
 
-lst_common = { path = "../lst_common" }
+lst_common = { path = "../../packages/lst_common" }
 
 bech32 = "0.11"
