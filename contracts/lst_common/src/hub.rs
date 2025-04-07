@@ -77,6 +77,8 @@ pub enum QueryMsg {
         address: String,
     },
     /// Return all the unstaking requests for a user
+    /// Released amount can be withdrawn immediately
+    /// The requests for which unbonding time has passed can be delayed if the fast unbonding is not completed
     #[returns(UnstakeRequestsResponses)]
     UnstakeRequests {
         /// Address of the user

@@ -65,7 +65,9 @@ pub fn query_parameters(deps: Deps) -> LstResult<Parameters> {
     Ok(PARAMETERS.load(deps.storage)?)
 }
 
-// TODO: This logic should be updated now as unstake cutoff time is not the only criteria now
+// This method gives an estimate of the amount that can be withdrawn.
+// This is not accurate if there is delay in fast unbonding
+// For accurate amount, query unstake requests and check if released is true
 pub fn query_withdrawable_unstaked(
     deps: Deps,
     env: Env,
