@@ -94,14 +94,14 @@ fn mock_validator_and_token_responses(
         address: "validator1".to_string(),
         total_delegated: Uint128::from(10000u128),
     }];
-    
+
     let token_info = TokenInfoResponse {
         name: "LST Token".to_string(),
         symbol: "LST".to_string(),
         decimals: 6,
         total_supply,
     };
-    
+
     deps.querier.update_wasm(move |query| match query {
         WasmQuery::Smart { contract_addr, msg } => {
             if contract_addr == "lst_token" && msg.as_slice().starts_with(b"{\"token_info\":") {
@@ -176,10 +176,10 @@ fn test_execute_stake_rewards() {
     let state = STATE.load(deps.as_ref().storage).unwrap();
     assert_eq!(state.total_staked_amount, Uint128::new(900));
     assert_eq!(state.lst_exchange_rate, Decimal::one());
-    
+
     // Update mock for stake rewards
     mock_validator_and_token_responses(&mut deps, Uint128::new(900));
-    
+
     // Now execute stake rewards
     let info = message_info(&Addr::unchecked("reward_dispatcher"), &coins(100, "uatom"));
     let res = execute_stake(deps.as_mut(), mock_env(), info, StakeType::StakeRewards).unwrap();
@@ -198,8 +198,11 @@ fn test_execute_stake_rewards() {
     // Verify state updates after stake rewards
     let state = STATE.load(deps.as_ref().storage).unwrap();
     assert_eq!(state.total_staked_amount, Uint128::new(1000)); // 900 + 100
-    // Exchange rate should now be 1000/900 = 1.111...
-    assert_eq!(state.lst_exchange_rate, Decimal::from_ratio(1000u128, 900u128));
+                                                               // Exchange rate should now be 1000/900 = 1.111...
+    assert_eq!(
+        state.lst_exchange_rate,
+        Decimal::from_ratio(1000u128, 900u128)
+    );
 }
 
 #[test]
@@ -216,7 +219,7 @@ fn test_execute_stake_unauthorized_rewards() {
     let res = execute_stake(deps.as_mut(), mock_env(), info, StakeType::StakeRewards);
 
     // Verify error
-    assert_eq!(res, Err(ContractError::Unauthorized {}.into()));
+    assert_eq!(res, Err(ContractError::Unauthorized {}));
 }
 
 #[test]
@@ -233,7 +236,7 @@ fn test_execute_stake_invalid_amount() {
     let res = execute_stake(deps.as_mut(), mock_env(), info, StakeType::LSTMint);
 
     // Verify error
-    assert_eq!(res, Err(ContractError::Hub(HubError::InvalidAmount).into()));
+    assert_eq!(res, Err(ContractError::Hub(HubError::InvalidAmount)));
 }
 
 #[test]
@@ -250,7 +253,7 @@ fn test_execute_stake_invalid_denom() {
     let res = execute_stake(deps.as_mut(), mock_env(), info, StakeType::LSTMint);
 
     // Verify error
-    assert_eq!(res, Err(ContractError::Hub(HubError::InvalidAmount).into()));
+    assert_eq!(res, Err(ContractError::Hub(HubError::InvalidAmount)));
 }
 
 #[test]
@@ -280,8 +283,5 @@ fn test_execute_stake_multiple_coins() {
     let res = execute_stake(deps.as_mut(), mock_env(), info, StakeType::LSTMint);
 
     // Verify error
-    assert_eq!(
-        res,
-        Err(ContractError::Hub(HubError::OnlyOneCoinAllowed).into())
-    );
+    assert_eq!(res, Err(ContractError::Hub(HubError::OnlyOneCoinAllowed)));
 }
