@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage},
-    Attribute, DistributionMsg, Empty, OwnedDeps, Response,
+    DistributionMsg, Empty, OwnedDeps, Response,
 };
 
 use lst_common::{
@@ -96,11 +96,11 @@ fn test_update_config_owner() {
     assert_eq!(
         res.attributes,
         vec![
-            Attribute::new("action", "update_config"),
-            Attribute::new("owner", deps.api.addr_make(NEW_OWNER).to_string()),
-            Attribute::new("lst_token", "None"),
-            Attribute::new("reward_dispatcher", "None"),
-            Attribute::new("validator_registry", "None"),
+            ("action", "update_config"),
+            ("owner", deps.api.addr_make(NEW_OWNER).as_ref()),
+            ("lst_token", "None"),
+            ("reward_dispatcher", "None"),
+            ("validator_registry", "None"),
         ]
     );
 
@@ -151,11 +151,11 @@ fn test_update_config_lst_token() {
     assert_eq!(
         res.attributes,
         vec![
-            Attribute::new("action", "update_config"),
-            Attribute::new("owner", deps.api.addr_make(OWNER).to_string()),
-            Attribute::new("lst_token", deps.api.addr_make(LST_TOKEN).to_string()),
-            Attribute::new("reward_dispatcher", "None"),
-            Attribute::new("validator_registry", "None"),
+            ("action", "update_config"),
+            ("owner", deps.api.addr_make(OWNER).as_ref()),
+            ("lst_token", deps.api.addr_make(LST_TOKEN).as_ref()),
+            ("reward_dispatcher", "None"),
+            ("validator_registry", "None"),
         ]
     );
 
@@ -219,11 +219,11 @@ fn test_update_config_validator_registry() {
     assert_eq!(
         res.attributes,
         vec![
-            Attribute::new("action", "update_config"),
-            Attribute::new("owner", deps.api.addr_make(OWNER).to_string()),
-            Attribute::new("lst_token", "None"),
-            Attribute::new("reward_dispatcher", "None"),
-            Attribute::new("validator_registry", validator_registry),
+            ("action", "update_config"),
+            ("owner", deps.api.addr_make(OWNER).as_ref()),
+            ("lst_token", "None"),
+            ("reward_dispatcher", "None"),
+            ("validator_registry", &validator_registry),
         ]
     );
 
@@ -258,14 +258,14 @@ fn test_update_config_reward_dispatcher() {
     assert_eq!(
         res.attributes,
         vec![
-            Attribute::new("action", "update_config"),
-            Attribute::new("owner", deps.api.addr_make(OWNER).to_string()),
-            Attribute::new("lst_token", "None"),
-            Attribute::new(
+            ("action", "update_config"),
+            ("owner", deps.api.addr_make(OWNER).as_ref()),
+            ("lst_token", "None"),
+            (
                 "reward_dispatcher",
-                deps.api.addr_make(REWARD_DISPATCHER).to_string()
+                deps.api.addr_make(REWARD_DISPATCHER).as_ref()
             ),
-            Attribute::new("validator_registry", "None"),
+            ("validator_registry", "None"),
         ]
     );
 
