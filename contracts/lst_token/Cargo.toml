@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 library = []
-
+testing = []
 
 [dependencies]
 lst_common = { path = "../../packages/lst_common" }
@@ -25,3 +25,5 @@ thiserror.workspace = true
 cw20.workspace = true
 
 cw20-base = { workspace = true, features = ["library"] }
+cw-multi-test = { workspace = true }
+serde = { workspace = true }

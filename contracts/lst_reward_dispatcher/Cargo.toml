@@ -11,6 +11,7 @@ crate-type = ["rlib", "cdylib"]
 [features]
 library = []
 default = []
+testing = []
 
 [dependencies]
 cosmwasm-std.workspace = true
@@ -19,3 +20,5 @@ cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true
 
 lst_common = { path = "../../packages/lst_common" }
+serde.workspace = true
+cw-multi-test = { workspace = true }

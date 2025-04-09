@@ -11,7 +11,9 @@ pub use crate::signed_integer::SignedInt;
 use cosmwasm_std::{Addr, Deps};
 
 use types::LstResult;
+pub mod address;
 pub mod babylon_msg;
+pub mod testing;
 
 pub use crate::{
     delegation::calculate_delegations,

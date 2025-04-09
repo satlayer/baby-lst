@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 library = []
+testing = []
 
 [dependencies]
 lst_common = { path = "../../packages/lst_common", default-features = false }
@@ -26,5 +27,7 @@ thiserror = { workspace = true }
 cw20-base = { workspace = true }
 cw20 = { workspace = true }
 
-[dev-dependencies]
-cw-multi-test = { workspace = true, features = ["staking"] }
+cw-multi-test = { workspace = true, features = ["staking", "cosmwasm_2_2"] }
+lst_token = {workspace = true, features = ["testing"]}
+lst_validators_registry = {workspace = true, features = ["testing"]}
+lst_reward_dispatcher = {workspace = true, features = ["testing"]}

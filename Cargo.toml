@@ -36,3 +36,9 @@ cosmos-sdk-proto = { version = "0.27.0", default-features = false, features = [
   "cosmwasm",
 ] }
 prost = { version = "0.13.5", default-features = false }
+bech32 = "0.11"
+
+lst_token = { path = "./contracts/lst_token", features = ["library"] }
+lst_staking_hub = { path = "./contracts/lst_staking_hub", features = ["library"] }
+lst_validators_registry = { path = "./contracts/lst_validators_registry", features = ["library"] }
+lst_reward_dispatcher = { path = "./contracts/lst_reward_dispatcher", features = ["library"] }

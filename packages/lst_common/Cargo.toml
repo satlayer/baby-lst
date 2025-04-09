@@ -16,5 +16,8 @@ schemars.workspace = true
 serde.workspace = true
 cw20.workspace = true
 cw2.workspace = true
+cw20-base.workspace = true
+cw-multi-test = { workspace = true, features = ["staking"] }
 cosmos-sdk-proto = { workspace = true }
 prost = { workspace = true, default-features = false }
+bech32.workspace = true

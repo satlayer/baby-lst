@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 
+use crate::{
+    helper::fetch_validator_info,
+    state::{CONFIG, VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY},
+};
+use lst_common::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use lst_common::{
     calculate_delegations,
     hub::ExecuteMsg::RedelegateProxy,
@@ -13,11 +18,6 @@ use lst_common::{
     types::{LstResult, StdCoin},
     validator::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, Validator, ValidatorResponse},
     ContractError, MigrateMsg,
-};
-
-use crate::{
-    helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
-    state::{CONFIG, VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY},
 };
 
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
