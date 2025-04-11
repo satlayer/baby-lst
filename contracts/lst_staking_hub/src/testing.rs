@@ -1,8 +1,9 @@
-#![cfg(any(test, feature = "testing"))]
+#![cfg(not(target_arch = "wasm32"))]
 
 use crate::{execute, instantiate, query};
-use cosmwasm_std::{Addr, Empty, Env};
+use cosmwasm_std::{Addr, Env};
 use cw_multi_test::{Contract, ContractWrapper};
+use lst_common::babylon::{EpochingMsg, EpochingQuery};
 use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use lst_common::testing::{BabylonApp, TestingContract};
 use serde::{Deserialize, Serialize};
@@ -14,8 +15,8 @@ pub struct StakingHubContract {
 }
 
 impl TestingContract<InstantiateMsg, ExecuteMsg, QueryMsg> for StakingHubContract {
-    fn wrapper() -> Box<dyn Contract<Empty>> {
-        Box::new(ContractWrapper::new(execute, instantiate, query))
+    fn wrapper() -> Box<dyn Contract<EpochingMsg, EpochingQuery>> {
+        Box::new(ContractWrapper::new_with_empty(execute, instantiate, query))
     }
 
     fn default_init(_app: &mut BabylonApp, _env: &Env) -> InstantiateMsg {

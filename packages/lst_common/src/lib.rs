@@ -13,6 +13,7 @@ use cosmwasm_std::{Addr, Deps};
 use types::LstResult;
 pub mod address;
 pub mod babylon_msg;
+pub mod babylon;
 pub mod testing;
 
 pub use crate::{

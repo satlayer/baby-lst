@@ -1,33 +1,47 @@
+use std::borrow::BorrowMut;
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use crate::babylon_msg::MsgWrappedDelegate;
+use crate::babylon::{BabylonModule, EpochingModule, EpochingMsg, EpochingQuery};
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CustomMsg, CustomQuery, Empty, Env,
-    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery
+    , Env, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw20_base;
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
-    App, AppResponse, BankKeeper, Contract, CosmosRouter, DistributionKeeper, Executor,
-    FailingModule, GovFailingModule, IbcFailingModule, StakeKeeper, Stargate, WasmKeeper,
+    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter,
+    DistributionKeeper, Executor, GovFailingModule, IbcFailingModule
+    , Router, StakeKeeper, Stargate, WasmKeeper,
 };
 use prost::Message;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 pub struct CustomStargate {}
 
+impl Default for CustomStargate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CustomStargate {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 /// CustomStargate is to catch custom keeper messages sent to Babylon app through protobuf and do logic
-/// 
+///
 /// TODO: separate into different keeper modules (etc. epoching, checkpointing, etc)
 impl Stargate for CustomStargate {
     fn execute_any<ExecC, QueryC>(
         &self,
-        _api: &dyn Api,
-        _storage: &mut dyn Storage,
-        _router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
-        _block: &BlockInfo,
+        api: &dyn Api,
+        storage: &mut dyn Storage,
+        router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
+        block: &BlockInfo,
         sender: Addr,
         msg: AnyMsg,
     ) -> AnyResult<AppResponse>
@@ -35,8 +49,6 @@ impl Stargate for CustomStargate {
         ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
-        println!("Custom Stargate execute_any called {:?}, {:?}", msg, sender);
-
         match msg.type_url.as_str() {
             "/babylon.epoching.v1.MsgWrappedDelegate" => {
                 // Handle MsgDelegate to validator - reroute to default staking module
@@ -49,24 +61,24 @@ impl Stargate for CustomStargate {
                     .amount
                     .ok_or(StdError::generic_err("Missing amount"))?;
 
-                // send the MsgDelegate to the staking module
-                _router.execute(
-                    _api,
-                    _storage,
-                    _block,
-                    sender,
-                    StakingMsg::Delegate {
+                // TODO: fix this type conversion hack
+                let custom_msg: ExecC = serde_json::from_slice(
+                    EpochingMsg::Delegate {
                         validator: convert_addr_by_prefix(
                             &msg_delegate.validator_address,
                             VALIDATOR_ADDR_PREFIX,
                         ),
-                        amount: Coin::new(
-                            Uint128::from_str(amount.amount.as_str()).unwrap(),
-                            amount.denom,
-                        ),
+                        amount: Coin {
+                            denom: amount.denom,
+                            amount: Uint128::from_str(&amount.amount.to_string())?,
+                        },
                     }
-                    .into(),
-                )
+                    .to_binary()
+                    .as_slice(),
+                )?;
+
+                // send the MsgDelegate to the staking module
+                router.execute(api, storage, block, sender, CosmosMsg::Custom(custom_msg))
             }
             _ => {
                 // Handle other messages
@@ -76,12 +88,12 @@ impl Stargate for CustomStargate {
     }
 }
 
-pub type BabylonApp = App<
+pub type BabylonAppWrapped = App<
     BankKeeper,
     MockApi,
     MockStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
+    BabylonModule,
+    WasmKeeper<EpochingMsg, EpochingQuery>,
     StakeKeeper,
     DistributionKeeper,
     IbcFailingModule,
@@ -89,14 +101,77 @@ pub type BabylonApp = App<
     CustomStargate,
 >;
 
+pub struct BabylonApp(BabylonAppWrapped);
+
+impl Deref for BabylonApp {
+    type Target = BabylonAppWrapped;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for BabylonApp {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl BabylonApp {
+    pub fn new<F>(init_fn: F) -> Self
+    where
+        F: FnOnce(
+            &mut Router<
+                BankKeeper,
+                BabylonModule,
+                WasmKeeper<EpochingMsg, EpochingQuery>,
+                StakeKeeper,
+                DistributionKeeper,
+                IbcFailingModule,
+                GovFailingModule,
+                CustomStargate,
+            >,
+            &MockApi,
+            &mut dyn Storage,
+        ),
+    {
+        Self(
+            BasicAppBuilder::<EpochingMsg, EpochingQuery>::new_custom()
+                .with_custom(BabylonModule::new())
+                .with_stargate(CustomStargate::new())
+                .build(init_fn),
+        )
+    }
+
+    pub fn next_epoch(
+        &mut self
+    ) -> AnyResult<AppResponse> {
+        let sender = self.api().addr_make("epoching");
+        let res = self.execute(
+            sender,
+            EpochingMsg::NextEpoch {}.into(),
+        );
+        
+        // TODO: update block height to next epoch dynamically
+        // fast forward the block height to the next epoch (assuming block_info is at start of epoch)
+        self.update_block(|block_info: &mut BlockInfo| {
+            block_info.height += 360
+        });
+        
+        res
+    }
+}
+
 /// TestingContract is a trait that provides a common interface for setting up testing contracts.
-pub trait TestingContract<IM, EM, QM>
+pub trait TestingContract<IM, EM, QM, ExecC = EpochingMsg, QueryC = EpochingQuery>
 where
     IM: serde::Serialize,
     EM: serde::Serialize,
     QM: serde::Serialize,
+    ExecC: CustomMsg + DeserializeOwned + 'static,
+    QueryC: CustomQuery + DeserializeOwned + 'static,
 {
-    fn wrapper() -> Box<dyn Contract<Empty>>;
+    fn wrapper() -> Box<dyn Contract<EpochingMsg, EpochingQuery>>;
 
     fn default_init(app: &mut BabylonApp, env: &Env) -> IM;
 
@@ -165,10 +240,4 @@ where
     }
 
     // TODO: fn migrate
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct Cw20TokenContract {
-    pub addr: Addr,
-    pub init: cw20_base::msg::InstantiateMsg,
 }

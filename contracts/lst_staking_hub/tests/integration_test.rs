@@ -4,11 +4,12 @@ use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{coin, coins, Decimal, Uint128, Validator};
 use cw20::BalanceResponse;
 use cw20::Cw20ExecuteMsg::IncreaseAllowance;
-use cw_multi_test::{AppBuilder, Executor, StakeKeeper, StakingInfo};
+use cw_multi_test::{Executor, StakingInfo};
 use lst_common::address::VALIDATOR_ADDR_PREFIX;
-use lst_common::hub::ExecuteMsg::{Stake, Unstake, UpdateConfig};
-use lst_common::hub::QueryMsg::ExchangeRate;
-use lst_common::testing::{BabylonApp, CustomStargate, TestingContract};
+use lst_common::hub::ExecuteMsg::{ProcessWithdrawRequests, Stake, Unstake, UpdateConfig};
+use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
+use lst_common::hub::PendingDelegation as PendingDelegationRes;
+use lst_common::testing::{BabylonApp, TestingContract};
 use lst_common::validator::ExecuteMsg::AddValidator;
 use lst_common::validator::QueryMsg::ValidatorsDelegation;
 use lst_common::validator::{Validator as LSTValidator, ValidatorResponse};
@@ -29,45 +30,40 @@ const UNBONDING_TIME: u64 = 60; // time between unbonding and receiving tokens b
 
 fn instantiate() -> (BabylonApp, TestContracts) {
     let block = mock_env().block;
-    let epoching = StakeKeeper::new();
-    let stargate = CustomStargate {};
 
-    let mut app = AppBuilder::new()
-        .with_staking(epoching)
-        .with_stargate(stargate)
-        .build(|router, api, storage| {
-            let owner = api.addr_make("owner");
-            let validator1_addr = api
-                .with_prefix(VALIDATOR_ADDR_PREFIX)
-                .addr_make("validator1");
-            let validator1 = Validator::new(
-                validator1_addr.to_string(),
-                Decimal::percent(10), // 10% commission
-                Decimal::percent(90), // 90% max comission
-                Decimal::percent(1),  // 1% max change rate
-            );
-            router
-                .bank
-                .init_balance(storage, &owner, vec![coin(Uint128::MAX.u128(), DENOM)])
-                .unwrap();
-            // setup staking parameters
-            router
-                .staking
-                .setup(
-                    storage,
-                    StakingInfo {
-                        bonded_denom: DENOM.to_string(),
-                        unbonding_time: UNBONDING_TIME,
-                        apr: Decimal::percent(10),
-                    },
-                )
-                .unwrap();
-            // add a validator1
-            router
-                .staking
-                .add_validator(api, storage, &block, validator1)
-                .unwrap();
-        });
+    let mut app = BabylonApp::new(|router, api, storage| {
+        let owner = api.addr_make("owner");
+        let validator1_addr = api
+            .with_prefix(VALIDATOR_ADDR_PREFIX)
+            .addr_make("validator1");
+        let validator1 = Validator::new(
+            validator1_addr.to_string(),
+            Decimal::percent(10), // 10% commission
+            Decimal::percent(90), // 90% max comission
+            Decimal::percent(1),  // 1% max change rate
+        );
+        router
+            .bank
+            .init_balance(storage, &owner, vec![coin(Uint128::MAX.u128(), DENOM)])
+            .unwrap();
+        // setup staking parameters
+        router
+            .staking
+            .setup(
+                storage,
+                StakingInfo {
+                    bonded_denom: DENOM.to_string(),
+                    unbonding_time: UNBONDING_TIME,
+                    apr: Decimal::percent(10),
+                },
+            )
+            .unwrap();
+        // add a validator1
+        router
+            .staking
+            .add_validator(api, storage, &block, validator1)
+            .unwrap();
+    });
 
     let env = mock_env();
 
@@ -231,6 +227,13 @@ fn test_exchange_rate() {
             )
             .unwrap();
 
+        // run process withdraw
+        tc.staking_hub.execute(
+            &mut app,
+            &tc.staking_hub.addr(),
+            &ProcessWithdrawRequests {},
+        ).unwrap();
+
         // assert that the staker2 has 300_000 LST token left
         let BalanceResponse { balance } = tc
             .lst_token
@@ -247,4 +250,22 @@ fn test_exchange_rate() {
     // assert that the exchange rate is 1:1
     let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
     assert_eq!(exchange_rate, Uint128::new(1));
+
+    let pending_delegation:PendingDelegationRes = tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(pending_delegation, PendingDelegationRes {
+        staking_epoch_length_blocks: 360,
+        staking_epoch_start_block_height: 12240,
+        pending_staking_amount: Uint128::new(1_500_000),
+        pending_unstaking_amount: Uint128::zero(),
+    });
+
+    let res = app.next_epoch().unwrap();
+
+    let pending_delegation2:PendingDelegationRes = tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(pending_delegation2, PendingDelegationRes {
+        staking_epoch_length_blocks: 360,
+        staking_epoch_start_block_height: 12240 + 360, // next epoch
+        pending_staking_amount: Uint128::zero(),
+        pending_unstaking_amount: Uint128::zero(),
+    });
 }

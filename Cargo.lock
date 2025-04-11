@@ -757,12 +757,14 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
+ "cw-storage-plus",
  "cw2",
  "cw20",
  "cw20-base",
  "prost",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 
