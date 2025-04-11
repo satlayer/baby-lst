@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    attr, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use lst_common::{

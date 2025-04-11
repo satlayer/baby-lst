@@ -1,8 +1,8 @@
 use std::env;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    SubMsg, Uint128, WasmMsg,
 };
 use cw20::MinterResponse;
 use cw20_base::{
