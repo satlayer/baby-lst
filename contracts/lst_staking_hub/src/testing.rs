@@ -3,7 +3,7 @@
 use crate::{execute, instantiate, query};
 use cosmwasm_std::{Addr, Env};
 use cw_multi_test::{Contract, ContractWrapper};
-use lst_common::babylon::{EpochingMsg, EpochingQuery};
+use lst_common::babylon::{EpochingMsg, EpochingQuery, DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT, UNSTAKING_PERIOD};
 use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use lst_common::testing::{BabylonApp, TestingContract};
 use serde::{Deserialize, Serialize};
@@ -21,11 +21,11 @@ impl TestingContract<InstantiateMsg, ExecuteMsg, QueryMsg> for StakingHubContrac
 
     fn default_init(_app: &mut BabylonApp, _env: &Env) -> InstantiateMsg {
         InstantiateMsg {
-            epoch_length: 7200,
-            staking_coin_denom: "BABY".to_string(),
-            unstaking_period: 64800,
-            staking_epoch_start_block_height: 0,
-            staking_epoch_length_blocks: 360,
+            epoch_length: EPOCH_LENGTH,
+            staking_coin_denom: DENOM.to_string(),
+            unstaking_period: UNSTAKING_PERIOD,
+            staking_epoch_start_block_height: STAKING_EPOCH_START_BLOCK_HEIGHT,
+            staking_epoch_length_blocks: STAKING_EPOCH_LENGTH_BLOCKS,
         }
     }
 

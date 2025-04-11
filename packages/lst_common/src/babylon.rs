@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use crate::testing::BabylonApp;
 use cosmwasm_schema::cw_serde;
@@ -9,6 +11,13 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+
+// CONST
+pub const EPOCH_LENGTH: u64 = 7200;
+pub const DENOM: &str = "BABY";
+pub const UNSTAKING_PERIOD: u64 = 64800;
+pub const STAKING_EPOCH_START_BLOCK_HEIGHT: u64 = 0;
+pub const STAKING_EPOCH_LENGTH_BLOCKS: u64 = 360;
 
 // STATE
 #[cw_serde]

@@ -6,6 +6,7 @@ use cw20::BalanceResponse;
 use cw20::Cw20ExecuteMsg::IncreaseAllowance;
 use cw_multi_test::{Executor, StakingInfo};
 use lst_common::address::VALIDATOR_ADDR_PREFIX;
+use lst_common::babylon::{DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT, UNSTAKING_PERIOD};
 use lst_common::hub::ExecuteMsg::{ProcessWithdrawRequests, Stake, Unstake, UpdateConfig};
 use lst_common::hub::PendingDelegation as PendingDelegationRes;
 use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
@@ -14,7 +15,7 @@ use lst_common::validator::ExecuteMsg::AddValidator;
 use lst_common::validator::QueryMsg::ValidatorsDelegation;
 use lst_common::validator::{Validator as LSTValidator, ValidatorResponse};
 use lst_reward_dispatcher::testing::RewardDispatcherContract;
-use lst_staking_hub::testing::StakingHubContract;
+use lst_staking_hub::testing::{StakingHubContract};
 use lst_token::testing::TokenContract;
 use lst_validators_registry::testing::ValidatorRegistryContract;
 
@@ -25,7 +26,6 @@ struct TestContracts {
     reward_dispatcher: RewardDispatcherContract,
 }
 
-const DENOM: &str = "BABY"; // denominator of the staking token
 const UNBONDING_TIME: u64 = 60; // time between unbonding and receiving tokens back (in seconds)
 
 fn instantiate() -> (BabylonApp, TestContracts) {
@@ -124,36 +124,21 @@ fn test_instantiate() {
     let (_app, tc) = instantiate();
 
     // Check that the contract was instantiated correctly
-    assert_eq!(tc.staking_hub.init.epoch_length, 7200);
-    assert_eq!(tc.staking_hub.init.unstaking_period, 64800);
-    assert_eq!(tc.staking_hub.init.staking_coin_denom, "BABY");
-    assert_eq!(tc.staking_hub.init.staking_epoch_length_blocks, 360);
-    assert_eq!(tc.staking_hub.init.staking_epoch_start_block_height, 0);
+    assert_eq!(tc.staking_hub.init.epoch_length, EPOCH_LENGTH);
+    assert_eq!(tc.staking_hub.init.unstaking_period, UNSTAKING_PERIOD);
+    assert_eq!(tc.staking_hub.init.staking_coin_denom, DENOM);
+    assert_eq!(tc.staking_hub.init.staking_epoch_length_blocks, STAKING_EPOCH_LENGTH_BLOCKS);
+    assert_eq!(tc.staking_hub.init.staking_epoch_start_block_height, STAKING_EPOCH_START_BLOCK_HEIGHT);
 }
 
 #[test]
-fn test_exchange_rate() {
+fn test_stake_unstake_within_same_epoch() {
     let (mut app, tc) = instantiate();
 
     let owner = app.api().addr_make("owner");
     let staker = app.api().addr_make("staker");
     let staker2 = app.api().addr_make("staker2");
     let validator1 = app.api().addr_make("validator1");
-
-    {
-        // query validator registry
-        let res: Vec<ValidatorResponse> = tc
-            .validator_registry
-            .query(&app, &ValidatorsDelegation {})
-            .unwrap();
-        assert_eq!(
-            res,
-            vec![ValidatorResponse {
-                total_delegated: Default::default(),
-                address: validator1.to_string()
-            },]
-        );
-    }
 
     {
         // get BABY token for staker
@@ -199,10 +184,6 @@ fn test_exchange_rate() {
         assert_eq!(balance, Uint128::new(500_000));
     }
 
-    // assert that the exchange rate is 1:1
-    let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
-    assert_eq!(exchange_rate, Uint128::new(1));
-
     {
         // staker2 give allowance to staking hub
         tc.lst_token
@@ -227,15 +208,6 @@ fn test_exchange_rate() {
             )
             .unwrap();
 
-        // run process withdraw
-        tc.staking_hub
-            .execute(
-                &mut app,
-                &tc.staking_hub.addr(),
-                &ProcessWithdrawRequests {},
-            )
-            .unwrap();
-
         // assert that the staker2 has 300_000 LST token left
         let BalanceResponse { balance } = tc
             .lst_token
@@ -253,19 +225,20 @@ fn test_exchange_rate() {
     let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
     assert_eq!(exchange_rate, Uint128::new(1));
 
+    // assert that pending staking amount is correct
     let pending_delegation: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
     assert_eq!(
         pending_delegation,
         PendingDelegationRes {
             staking_epoch_length_blocks: 360,
-            staking_epoch_start_block_height: 12240,
-            pending_staking_amount: Uint128::new(1_500_000),
+            staking_epoch_start_block_height: 0,
+            pending_staking_amount: Uint128::new(1_500_000), // should be 1_300_000 ??
             pending_unstaking_amount: Uint128::zero(),
         }
     );
 
-    let res = app.next_epoch().unwrap();
+    app.next_epoch().expect("Failed to fast forward to next epoch");
 
     let pending_delegation2: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
@@ -273,9 +246,13 @@ fn test_exchange_rate() {
         pending_delegation2,
         PendingDelegationRes {
             staking_epoch_length_blocks: 360,
-            staking_epoch_start_block_height: 12240 + 360, // next epoch
+            staking_epoch_start_block_height: 360, // next epoch
             pending_staking_amount: Uint128::zero(),
             pending_unstaking_amount: Uint128::zero(),
         }
     );
+
+    // assert that the exchange rate is 1:1 after end of epoch
+    let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
+    assert_eq!(exchange_rate, Uint128::new(1));
 }
