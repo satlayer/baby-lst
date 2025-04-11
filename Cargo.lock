@@ -750,7 +750,7 @@ checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 
 [[package]]
 name = "lst_common"
-version = "1.0.0-alpha1"
+version = "1.0.0"
 dependencies = [
  "cosmos-sdk-proto",
  "cosmwasm-schema",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "lst_reward_dispatcher"
-version = "1.0.0-alpha1"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "lst_staking_hub"
-version = "1.0.0-alpha1"
+version = "1.0.0"
 dependencies = [
  "cosmos-sdk-proto",
  "cosmwasm-schema",
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "lst_token"
-version = "1.0.0-alpha1"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "lst_validators_registry"
-version = "1.0.0-alpha1"
+version = "1.0.0"
 dependencies = [
  "bech32",
  "cosmwasm-schema",
