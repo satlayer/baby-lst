@@ -1,17 +1,15 @@
-use std::borrow::BorrowMut;
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
+use crate::babylon::{BabylonModule, EpochingMsg, EpochingQuery};
 use crate::babylon_msg::MsgWrappedDelegate;
-use crate::babylon::{BabylonModule, EpochingModule, EpochingMsg, EpochingQuery};
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery
-    , Env, StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
-    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter,
-    DistributionKeeper, Executor, GovFailingModule, IbcFailingModule
-    , Router, StakeKeeper, Stargate, WasmKeeper,
+    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper,
+    Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, Stargate, WasmKeeper,
 };
 use prost::Message;
 use serde::de::DeserializeOwned;
@@ -143,21 +141,14 @@ impl BabylonApp {
         )
     }
 
-    pub fn next_epoch(
-        &mut self
-    ) -> AnyResult<AppResponse> {
+    pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
         let sender = self.api().addr_make("epoching");
-        let res = self.execute(
-            sender,
-            EpochingMsg::NextEpoch {}.into(),
-        );
-        
+        let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
+
         // TODO: update block height to next epoch dynamically
         // fast forward the block height to the next epoch (assuming block_info is at start of epoch)
-        self.update_block(|block_info: &mut BlockInfo| {
-            block_info.height += 360
-        });
-        
+        self.update_block(|block_info: &mut BlockInfo| block_info.height += 360);
+
         res
     }
 }

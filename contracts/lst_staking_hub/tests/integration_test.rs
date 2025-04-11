@@ -7,8 +7,8 @@ use cw20::Cw20ExecuteMsg::IncreaseAllowance;
 use cw_multi_test::{Executor, StakingInfo};
 use lst_common::address::VALIDATOR_ADDR_PREFIX;
 use lst_common::hub::ExecuteMsg::{ProcessWithdrawRequests, Stake, Unstake, UpdateConfig};
-use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
 use lst_common::hub::PendingDelegation as PendingDelegationRes;
+use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
 use lst_common::testing::{BabylonApp, TestingContract};
 use lst_common::validator::ExecuteMsg::AddValidator;
 use lst_common::validator::QueryMsg::ValidatorsDelegation;
@@ -228,11 +228,13 @@ fn test_exchange_rate() {
             .unwrap();
 
         // run process withdraw
-        tc.staking_hub.execute(
-            &mut app,
-            &tc.staking_hub.addr(),
-            &ProcessWithdrawRequests {},
-        ).unwrap();
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &tc.staking_hub.addr(),
+                &ProcessWithdrawRequests {},
+            )
+            .unwrap();
 
         // assert that the staker2 has 300_000 LST token left
         let BalanceResponse { balance } = tc
@@ -251,21 +253,29 @@ fn test_exchange_rate() {
     let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
     assert_eq!(exchange_rate, Uint128::new(1));
 
-    let pending_delegation:PendingDelegationRes = tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
-    assert_eq!(pending_delegation, PendingDelegationRes {
-        staking_epoch_length_blocks: 360,
-        staking_epoch_start_block_height: 12240,
-        pending_staking_amount: Uint128::new(1_500_000),
-        pending_unstaking_amount: Uint128::zero(),
-    });
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 12240,
+            pending_staking_amount: Uint128::new(1_500_000),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
 
     let res = app.next_epoch().unwrap();
 
-    let pending_delegation2:PendingDelegationRes = tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
-    assert_eq!(pending_delegation2, PendingDelegationRes {
-        staking_epoch_length_blocks: 360,
-        staking_epoch_start_block_height: 12240 + 360, // next epoch
-        pending_staking_amount: Uint128::zero(),
-        pending_unstaking_amount: Uint128::zero(),
-    });
+    let pending_delegation2: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation2,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 12240 + 360, // next epoch
+            pending_staking_amount: Uint128::zero(),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
 }
