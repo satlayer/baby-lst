@@ -1,12 +1,9 @@
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use crate::testing::BabylonApp;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    Addr, Api, Binary, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Empty, Event, Querier,
-    StakingMsg, StakingQuery, Storage, Uint128,
-};
+use cosmwasm_std::{Addr, Api, Binary, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Empty, Event, Querier, StakingMsg, Storage};
 use cw_multi_test::error::AnyResult;
-use cw_multi_test::{AppResponse, CosmosRouter, Executor, Module, StakingSudo};
+use cw_multi_test::{AppResponse, CosmosRouter, Executor, Module};
 use cw_storage_plus::Deque;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
