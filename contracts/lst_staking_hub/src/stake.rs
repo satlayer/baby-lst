@@ -181,3 +181,252 @@ fn prepare_wrapped_delegate_msg(
     }
     .to_any()
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmos_sdk_proto::{cosmos::staking::v1beta1::MsgDelegate, traits::MessageExt};
+    use cosmwasm_std::{
+        attr, coin, from_json,
+        testing::{message_info, mock_dependencies, mock_env},
+        to_json_binary, AnyMsg, Binary, ContractResult, CosmosMsg, SubMsg, SystemResult, Uint128,
+        WasmMsg, WasmQuery,
+    };
+    use cw20::{Cw20ExecuteMsg, Cw20QueryMsg};
+    use cw20_base::state::TokenInfo;
+    use lst_common::{
+        babylon_msg::MsgWrappedDelegate,
+        errors::HubError,
+        hub::InstantiateMsg,
+        types::ProtoCoin,
+        validator::{
+            QueryMsg::{self as ValidatorQueryMsg, ValidatorsDelegation},
+            ValidatorResponse,
+        },
+        ContractError,
+    };
+
+    use crate::{config::execute_update_config, instantiate, state::StakeType};
+
+    use super::execute_stake;
+
+    #[test]
+    fn test_execute_stake() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // RewardDispatcherNotSet error
+        {
+            let err = execute_stake(deps.as_mut(), env.clone(), info.clone(), StakeType::LSTMint)
+                .unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::RewardDispatcherNotSet));
+        }
+
+        // Unauthorized error
+        {
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            let err = execute_stake(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                StakeType::StakeRewards,
+            )
+            .unwrap_err();
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // Unauthorized error
+        {
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            let err = execute_stake(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                StakeType::StakeRewards,
+            )
+            .unwrap_err();
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // OnlyOneCoinAllowed error
+        {
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+            let info = message_info(&owner, &[coin(100, denom), coin(100, "denom1")]);
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            let err = execute_stake(deps.as_mut(), env.clone(), info.clone(), StakeType::LSTMint)
+                .unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::OnlyOneCoinAllowed));
+        }
+
+        // InvalidAmount error
+        {
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            let err = execute_stake(deps.as_mut(), env.clone(), info.clone(), StakeType::LSTMint)
+                .unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::InvalidAmount));
+        }
+
+        // LstTokenNotSet error
+        {
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+            let validator_registry = deps.api.addr_make("validator_registry");
+            let validator_registry_clone = validator_registry.clone();
+
+            let lst_token = deps.api.addr_make("lst_token");
+            let lst_token_clone = lst_token.clone();
+
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart { contract_addr, msg } => {
+                    if contract_addr.to_string() == lst_token_clone.to_string() {
+                        let msg: Cw20QueryMsg = from_json(msg).unwrap();
+                        match msg {
+                            Cw20QueryMsg::TokenInfo {} => SystemResult::Ok(ContractResult::Ok(
+                                to_json_binary(&TokenInfo {
+                                    name: "Test".to_string(),
+                                    symbol: "TT".to_string(),
+                                    decimals: 6,
+                                    total_supply: Uint128::new(1000),
+                                    mint: None,
+                                })
+                                .unwrap(),
+                            )),
+                            _ => panic!("unexpected query"),
+                        }
+                    } else if contract_addr.to_string() == validator_registry_clone.to_string() {
+                        let msg: ValidatorQueryMsg = from_json(msg).unwrap();
+                        match msg {
+                            ValidatorsDelegation {} => SystemResult::Ok(ContractResult::Ok(
+                                to_json_binary(&vec![ValidatorResponse {
+                                    total_delegated: Uint128::new(100),
+                                    address: "validator1".to_string(),
+                                }])
+                                .unwrap(),
+                            )),
+                            _ => panic!("unexpected query"),
+                        }
+                    } else {
+                        panic!("unexpected query")
+                    }
+                }
+                _ => SystemResult::Err(cosmwasm_std::SystemError::Unknown {}),
+            });
+
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                Some(lst_token.to_string()),
+                Some(validator_registry.to_string()),
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            let info = message_info(&owner, &[coin(100, denom)]);
+            let response =
+                execute_stake(deps.as_mut(), env.clone(), info.clone(), StakeType::LSTMint)
+                    .unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![
+                    SubMsg::new(CosmosMsg::Any(AnyMsg {
+                        type_url: "/babylon.epoching.v1.MsgWrappedDelegate".to_string(),
+                        value: Binary::from(
+                            MsgWrappedDelegate {
+                                msg: Some(MsgDelegate {
+                                    delegator_address: env.contract.address.to_string(),
+                                    validator_address: "validator1".to_string(),
+                                    amount: Some(ProtoCoin {
+                                        denom: denom.to_string(),
+                                        amount: "100".to_string()
+                                    })
+                                })
+                            }
+                            .to_bytes()
+                            .unwrap()
+                        )
+                    })),
+                    SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: lst_token.to_string(),
+                        msg: to_json_binary(&Cw20ExecuteMsg::Mint {
+                            recipient: owner.to_string(),
+                            amount: Uint128::new(100)
+                        })
+                        .unwrap(),
+                        funds: vec![]
+                    }))
+                ]
+            );
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "mint"),
+                    attr("from", owner.to_string()),
+                    attr("staked", "100"),
+                    attr("minted", "100"),
+                ]
+            );
+        }
+    }
+}

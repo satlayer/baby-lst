@@ -453,3 +453,516 @@ fn prepare_wrapped_begin_redelegate_msg(
     }
     .to_any()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::execute_update_config,
+        constants::{
+            LST_EXCHANGE_RATE_UPDATED, NEW_AMOUNT, NEW_RATE, OLD_AMOUNT, OLD_RATE,
+            TOTAL_STAKED_AMOUNT_UPDATED,
+        },
+        contract::{execute_redelegate_proxy, execute_update_global_index, instantiate},
+    };
+    use cosmos_sdk_proto::{cosmos::staking::v1beta1::MsgBeginRedelegate, traits::MessageExt};
+    use cosmwasm_std::{
+        attr, coin, coins, from_json,
+        testing::{message_info, mock_dependencies, mock_env},
+        to_json_binary, AnyMsg, Binary, Coin, ContractResult, CosmosMsg, Decimal, DistributionMsg,
+        Event, FullDelegation, Response, SubMsg, SystemResult, Uint128, Validator, WasmQuery,
+    };
+    use cw20::Cw20QueryMsg;
+    use cw20_base::state::TokenInfo;
+    use lst_common::{
+        babylon_msg::MsgWrappedBeginRedelegate,
+        errors::{ContractError, HubError},
+        hub::{Cw20HookMsg, InstantiateMsg},
+        rewards_msg::ExecuteMsg::DispatchRewards,
+        types::ProtoCoin,
+    };
+
+    use super::{execute_slashing, receive_cw20};
+
+    #[test]
+    fn test_instantiate() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            let response = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+            let event1 = Event::new(LST_EXCHANGE_RATE_UPDATED)
+                .add_attribute(OLD_RATE, "0")
+                .add_attribute(NEW_RATE, "1");
+            let event2 = Event::new(TOTAL_STAKED_AMOUNT_UPDATED)
+                .add_attribute(OLD_AMOUNT, "0")
+                .add_attribute(NEW_AMOUNT, "0");
+
+            assert_eq!(response, Response::new().add_events(vec![event1, event2]));
+        }
+
+        // InvalidEpochLength error, epoch_length is greater than MAX_EPOCH_LENGTH
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 604801,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            let err = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidEpochLength));
+        }
+
+        // InvalidEpochLength error
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 100,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            let err = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidEpochLength));
+        }
+
+        // InvalidUnstakingPeriod error
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 2419201,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            let err = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidUnstakingPeriod));
+        }
+
+        // InvalidPeriods error
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 72000,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            let err = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidPeriods));
+        }
+    }
+
+    #[test]
+    fn test_execute_slashing() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            let info = message_info(&owner, &[]);
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // no delegations, successfully
+        {
+            let response = execute_slashing(deps.as_mut(), env.clone()).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "check_slashing"),
+                    attr("new_lst_exchange_rate", "1")
+                ]
+            );
+
+            assert_eq!(
+                response.events,
+                vec![
+                    Event::new("LstExchangeRateUpdated")
+                        .add_attribute("old_rate", "1")
+                        .add_attribute("new_rate", "1"),
+                    Event::new("TotalStakedAmountUpdated")
+                        .add_attribute("old_amount", "0")
+                        .add_attribute("new_amount", "0")
+                ]
+            );
+        }
+
+        // with delegations, successfully
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: Cw20QueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        Cw20QueryMsg::TokenInfo {} => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&TokenInfo {
+                                name: "Test".to_string(),
+                                symbol: "TT".to_string(),
+                                decimals: 6,
+                                total_supply: Uint128::new(1000),
+                                mint: None,
+                            })
+                            .unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(cosmwasm_std::SystemError::Unknown {}),
+            });
+
+            let validator1 = deps.api.addr_make("validator1");
+            let validator1_info = Validator::create(
+                validator1.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+
+            let validator1_full_delegation = FullDelegation::create(
+                env.contract.address.clone(),
+                validator1.to_string(),
+                coin(100, denom),
+                coin(120, denom),
+                coins(1000, denom),
+            );
+
+            deps.querier
+                .staking
+                .update(denom, &[validator1_info], &[validator1_full_delegation]);
+
+            let response = execute_slashing(deps.as_mut(), env.clone()).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "check_slashing"),
+                    attr("new_lst_exchange_rate", "1")
+                ]
+            );
+
+            assert_eq!(
+                response.events,
+                vec![
+                    Event::new("LstExchangeRateUpdated")
+                        .add_attribute("old_rate", "1")
+                        .add_attribute("new_rate", "1"),
+                    Event::new("TotalStakedAmountUpdated")
+                        .add_attribute("old_amount", "0")
+                        .add_attribute("new_amount", "0")
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn test_execute_redelegate_proxy() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let src_validator = deps.api.addr_make("src_validator");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // ValidatorRegistryNotSet error
+        {
+            let err = execute_redelegate_proxy(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                src_validator.to_string(),
+                vec![],
+            )
+            .unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::ValidatorRegistryNotSet));
+        }
+
+        let validator_registry = deps.api.addr_make("validator_registry");
+        execute_update_config(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            None,
+            None,
+            Some(validator_registry.to_string()),
+            None,
+        )
+        .unwrap();
+
+        // Unauthorized error
+        {
+            let err = execute_redelegate_proxy(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                src_validator.to_string(),
+                vec![],
+            )
+            .unwrap_err();
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // redelegate proxy successfully
+        {
+            let dst_validator = deps.api.addr_make("dst_validator");
+
+            let info = message_info(&validator_registry, &[]);
+            let response = execute_redelegate_proxy(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                src_validator.to_string(),
+                vec![(
+                    dst_validator.to_string(),
+                    Coin::new(Uint128::new(100), denom),
+                )],
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Any(AnyMsg {
+                    type_url: "/babylon.epoching.v1.MsgWrappedBeginRedelegate".to_string(),
+                    value: Binary::from(
+                        MsgWrappedBeginRedelegate {
+                            msg: Some(MsgBeginRedelegate {
+                                delegator_address: env.contract.address.to_string(),
+                                validator_src_address: src_validator.to_string(),
+                                validator_dst_address: dst_validator.to_string(),
+                                amount: Some(ProtoCoin {
+                                    denom: denom.to_string(),
+                                    amount: "100".to_string()
+                                }),
+                            })
+                        }
+                        .to_bytes()
+                        .unwrap()
+                    ),
+                }))]
+            );
+        }
+    }
+
+    #[test]
+    fn test_receive_cw20() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // LstTokenNotSet error
+        {
+            let msg = cw20::Cw20ReceiveMsg {
+                sender: owner.to_string(),
+                amount: Uint128::from(100u128),
+                msg: to_json_binary(&Cw20HookMsg::Unstake {}).unwrap(),
+            };
+
+            let err = receive_cw20(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::LstTokenNotSet));
+        }
+
+        {
+            let lst_token = deps.api.addr_make("lst_token");
+
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                Some(lst_token.to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
+            let msg = cw20::Cw20ReceiveMsg {
+                sender: owner.to_string(),
+                amount: Uint128::from(100u128),
+                msg: to_json_binary(&Cw20HookMsg::Unstake {}).unwrap(),
+            };
+
+            let lst_info = message_info(&lst_token, &[]);
+            receive_cw20(deps.as_mut(), env.clone(), lst_info, msg.clone()).unwrap();
+
+            let err = receive_cw20(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+    }
+
+    #[test]
+    fn test_execute_update_global_index() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // RewardDispatcherNotSet error
+        {
+            let err = execute_update_global_index(deps.as_mut(), env.clone()).unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::RewardDispatcherNotSet));
+        }
+
+        let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+        execute_update_config(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            None,
+            None,
+            None,
+            Some(reward_dispatcher.to_string()),
+        )
+        .unwrap();
+
+        // update global index successfully without delegations
+        {
+            let response = execute_update_global_index(deps.as_mut(), env.clone()).unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Wasm(
+                    cosmwasm_std::WasmMsg::Execute {
+                        contract_addr: reward_dispatcher.to_string(),
+                        msg: to_json_binary(&DispatchRewards {}).unwrap(),
+                        funds: vec![]
+                    }
+                ))]
+            );
+            assert_eq!(
+                response.attributes,
+                vec![attr("action", "update_global_index")]
+            );
+        }
+
+        // update global index successfully with delegations
+        {
+            let validator1 = deps.api.addr_make("validator1");
+            let validator1_info = Validator::create(
+                validator1.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+
+            let validator1_full_delegation = FullDelegation::create(
+                env.contract.address.clone(),
+                validator1.to_string(),
+                coin(100, denom),
+                coin(120, denom),
+                coins(1000, denom),
+            );
+
+            deps.querier
+                .staking
+                .update(denom, &[validator1_info], &[validator1_full_delegation]);
+
+            let response = execute_update_global_index(deps.as_mut(), env.clone()).unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![
+                    SubMsg::new(CosmosMsg::Distribution(
+                        DistributionMsg::WithdrawDelegatorReward {
+                            validator: validator1.to_string()
+                        }
+                    )),
+                    SubMsg::new(CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+                        contract_addr: reward_dispatcher.to_string(),
+                        msg: to_json_binary(&DispatchRewards {}).unwrap(),
+                        funds: vec![]
+                    })),
+                ]
+            );
+            assert_eq!(
+                response.attributes,
+                vec![attr("action", "update_global_index")]
+            );
+        }
+    }
+}
