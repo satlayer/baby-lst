@@ -152,3 +152,257 @@ fn is_authorized_sender(deps: Deps, sender: Addr) -> LstResult<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{
+        attr,
+        testing::{message_info, mock_dependencies, mock_env},
+        CosmosMsg, DistributionMsg, SubMsg,
+    };
+    use lst_common::{errors::HubError, hub::InstantiateMsg, ContractError};
+
+    use crate::{config::execute_update_params, instantiate};
+
+    use super::execute_update_config;
+
+    #[test]
+    fn test_execute_update_config() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // update None
+        {
+            let response = execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+            assert_eq!(response.messages, vec![]);
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "update_config"),
+                    attr("owner", owner.to_string()),
+                    attr("lst_token", "None"),
+                    attr("reward_dispatcher", "None"),
+                    attr("validator_registry", "None")
+                ]
+            );
+        }
+
+        // update all config successfully
+        {
+            let new_owner = deps.api.addr_make("new_owner");
+            let lst_token = deps.api.addr_make("lst_token");
+            let validator_registry = deps.api.addr_make("validator_registry");
+            let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+
+            let response = execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(new_owner.to_string()),
+                Some(lst_token.to_string()),
+                Some(validator_registry.to_string()),
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Distribution(
+                    DistributionMsg::SetWithdrawAddress {
+                        address: reward_dispatcher.to_string()
+                    }
+                ))]
+            );
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "update_config"),
+                    attr("owner", new_owner.to_string()),
+                    attr("lst_token", lst_token.to_string()),
+                    attr("reward_dispatcher", reward_dispatcher.to_string()),
+                    attr("validator_registry", validator_registry.to_string())
+                ]
+            );
+        }
+
+        // unauthorized error
+        {
+            let wrong_owner = deps.api.addr_make("wrong_owner");
+            let info = message_info(&wrong_owner, &[]);
+
+            let err =
+                execute_update_config(deps.as_mut(), env.clone(), info, None, None, None, None)
+                    .unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // LstTokenAlreadySet error
+        {
+            let new_owner = deps.api.addr_make("new_owner");
+            let new_lst_token = deps.api.addr_make("new_lst_token");
+            let info = message_info(&new_owner, &[]);
+
+            let err = execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info,
+                None,
+                Some(new_lst_token.to_string()),
+                None,
+                None,
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::LstTokenAlreadySet));
+        }
+    }
+
+    #[test]
+    fn test_execute_update_params() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // update None
+        {
+            let response =
+                execute_update_params(deps.as_mut(), env.clone(), info.clone(), None, None, None)
+                    .unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "update_params"),
+                    attr("paused", false.to_string()),
+                    attr("staking_coin_denom", denom.to_string()),
+                    attr("epoch_length", "7200"),
+                    attr("unstaking_period", "10000")
+                ]
+            );
+        }
+
+        // update all config successfully
+        {
+            let response = execute_update_params(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(true),
+                Some(1000),
+                Some(8000),
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "update_params"),
+                    attr("paused", true.to_string()),
+                    attr("staking_coin_denom", denom.to_string()),
+                    attr("epoch_length", "1000"),
+                    attr("unstaking_period", "8000")
+                ]
+            );
+        }
+
+        // unauthorized error
+        {
+            let wrong_owner = deps.api.addr_make("wrong_owner");
+            let info = message_info(&wrong_owner, &[]);
+
+            let err = execute_update_params(deps.as_mut(), env.clone(), info, None, None, None)
+                .unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // InvalidEpochLength error
+        {
+            let err = execute_update_params(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(true),
+                Some(604801),
+                Some(8000),
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidEpochLength));
+        }
+
+        // InvalidUnstakingPeriod error
+        {
+            let err = execute_update_params(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(true),
+                Some(100),
+                Some(2419201),
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidUnstakingPeriod));
+        }
+
+        // InvalidUnstakingPeriod error
+        {
+            let err = execute_update_params(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(true),
+                Some(1000),
+                Some(100),
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InvalidPeriods));
+        }
+    }
+}

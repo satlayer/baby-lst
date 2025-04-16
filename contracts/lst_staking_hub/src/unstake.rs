@@ -522,3 +522,405 @@ fn prepare_wrapped_undelegate_msg(
     }
     .to_any()
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{
+        attr, from_json,
+        testing::{message_info, mock_dependencies, mock_env},
+        to_json_binary, ContractResult, CosmosMsg, Response, SubMsg, SystemResult, Uint128,
+        WasmMsg, WasmQuery,
+    };
+    use cw20::{AllowanceResponse, BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
+    use lst_common::{
+        errors::HubError,
+        hub::{CurrentBatch, InstantiateMsg},
+        ContractError,
+    };
+
+    use crate::{
+        config::execute_update_config,
+        instantiate,
+        state::{UnstakeType, CURRENT_BATCH},
+        unstake::{execute_process_withdraw_requests, execute_withdraw_unstaked_for_batches},
+    };
+
+    use super::{execute_process_undelegations, execute_unstake, execute_withdraw_unstaked};
+
+    #[test]
+    fn test_execute_unstake() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let amount = Uint128::new(100);
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // LstTokenNotSet error
+        {
+            let err = execute_unstake(
+                deps.as_mut(),
+                env.clone(),
+                amount,
+                owner.to_string(),
+                UnstakeType::BurnFlow,
+            )
+            .unwrap_err();
+            assert_eq!(err, ContractError::Hub(HubError::LstTokenNotSet));
+        }
+
+        let reward_dispatcher = deps.api.addr_make("reward_dispatcher");
+        let validator_registry = deps.api.addr_make("validator_registry");
+        let lst_token = deps.api.addr_make("lst_token");
+
+        // update config successfully
+        {
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                Some(lst_token.to_string()),
+                Some(validator_registry.to_string()),
+                Some(reward_dispatcher.to_string()),
+            )
+            .unwrap();
+        }
+
+        // unstake successfully: UnstakeType::BurnFlow
+        {
+            let response = execute_unstake(
+                deps.as_mut(),
+                env.clone(),
+                amount,
+                owner.to_string(),
+                UnstakeType::BurnFlow,
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: lst_token.to_string(),
+                    msg: to_json_binary(&Cw20ExecuteMsg::Burn { amount }).unwrap(),
+                    funds: vec![]
+                }))]
+            );
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "burn"),
+                    attr("from", owner.to_string()),
+                    attr("burnt_amount", "100"),
+                    attr("unstaked_amount", "100"),
+                ]
+            );
+        }
+
+        // unstake error: InsufficientFunds
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: Cw20QueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        Cw20QueryMsg::Balance { address: _ } => {
+                            SystemResult::Ok(ContractResult::Ok(
+                                to_json_binary(&BalanceResponse {
+                                    balance: Uint128::new(10),
+                                })
+                                .unwrap(),
+                            ))
+                        }
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(cosmwasm_std::SystemError::Unknown {}),
+            });
+
+            let err = execute_unstake(
+                deps.as_mut(),
+                env.clone(),
+                amount,
+                owner.to_string(),
+                UnstakeType::BurnFromFlow,
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InsufficientFunds));
+        }
+
+        // unstake error: InsufficientAllowance
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: Cw20QueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        Cw20QueryMsg::Balance { address: _ } => {
+                            SystemResult::Ok(ContractResult::Ok(
+                                to_json_binary(&BalanceResponse {
+                                    balance: Uint128::new(1000),
+                                })
+                                .unwrap(),
+                            ))
+                        }
+                        Cw20QueryMsg::Allowance {
+                            owner: _,
+                            spender: _,
+                        } => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&AllowanceResponse {
+                                allowance: Uint128::new(10),
+                                expires: cw20::Expiration::Never {},
+                            })
+                            .unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(cosmwasm_std::SystemError::Unknown {}),
+            });
+
+            let err = execute_unstake(
+                deps.as_mut(),
+                env.clone(),
+                amount,
+                owner.to_string(),
+                UnstakeType::BurnFromFlow,
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::InsufficientAllowance));
+        }
+
+        // unstake successfully: UnstakeType::BurnFlow
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: Cw20QueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        Cw20QueryMsg::Balance { address: _ } => {
+                            SystemResult::Ok(ContractResult::Ok(
+                                to_json_binary(&BalanceResponse {
+                                    balance: Uint128::new(1000),
+                                })
+                                .unwrap(),
+                            ))
+                        }
+                        Cw20QueryMsg::Allowance {
+                            owner: _,
+                            spender: _,
+                        } => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&AllowanceResponse {
+                                allowance: Uint128::new(1000),
+                                expires: cw20::Expiration::Never {},
+                            })
+                            .unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(cosmwasm_std::SystemError::Unknown {}),
+            });
+
+            let response = execute_unstake(
+                deps.as_mut(),
+                env.clone(),
+                amount,
+                owner.to_string(),
+                UnstakeType::BurnFromFlow,
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: lst_token.to_string(),
+                    msg: to_json_binary(&Cw20ExecuteMsg::BurnFrom {
+                        owner: owner.to_string(),
+                        amount,
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }))]
+            );
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "burn"),
+                    attr("from", owner.to_string()),
+                    attr("burnt_amount", "100"),
+                    attr("unstaked_amount", "100"),
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn test_execute_withdraw_unstaked() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // NoWithdrawableAssets error
+        {
+            let err =
+                execute_withdraw_unstaked(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::NoWithdrawableAssets));
+        }
+    }
+
+    #[test]
+    fn test_execute_withdraw_unstaked_for_batches() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // NoWithdrawableAssets error
+        {
+            let err = execute_withdraw_unstaked_for_batches(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                vec![1],
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Hub(HubError::NoWithdrawableAssets));
+        }
+    }
+
+    #[test]
+    fn test_execute_process_undelegations() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // execute process undelegations successfully: requested_lst_token_amount is 0
+        {
+            let response = execute_process_undelegations(deps.as_mut(), env.clone()).unwrap();
+            assert_eq!(response, Response::new());
+        }
+
+        // execute process undelegations successfully
+        {
+            let current_batch = CurrentBatch {
+                id: 1,
+                requested_lst_token_amount: Uint128::new(100),
+            };
+            CURRENT_BATCH
+                .save(deps.as_mut().storage, &current_batch)
+                .unwrap();
+
+            let response = execute_process_undelegations(deps.as_mut(), env.clone()).unwrap();
+            assert_eq!(
+                response.attributes,
+                vec![attr("process undelegations", "1")]
+            );
+        }
+    }
+
+    #[test]
+    fn test_execute_process_withdraw_requests() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                epoch_length: 7200,
+                staking_coin_denom: denom.to_string(),
+                unstaking_period: 10000,
+                staking_epoch_start_block_height: 100,
+                staking_epoch_length_blocks: 360,
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // execute process undelegations successfully: requested_lst_token_amount is 0
+        {
+            let response = execute_process_withdraw_requests(deps.as_mut(), env.clone()).unwrap();
+            assert_eq!(
+                response.attributes,
+                vec![attr("action", "process_withdraw_requests")]
+            );
+        }
+    }
+}

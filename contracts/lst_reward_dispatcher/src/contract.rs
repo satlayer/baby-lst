@@ -473,7 +473,7 @@ mod tests {
                     let msg: HubQueryMsg = from_json(msg).unwrap();
                     match msg {
                         HubQueryMsg::Parameters {} => SystemResult::Ok(ContractResult::Ok(
-                            to_json_binary(&&Parameters::default()).unwrap(),
+                            to_json_binary(&Parameters::default()).unwrap(),
                         )),
                         _ => panic!("unexpected query"),
                     }
