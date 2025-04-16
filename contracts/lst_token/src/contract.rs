@@ -20,7 +20,7 @@ use cw20_base::{
 };
 
 use lst_common::hub::ExecuteMsg::CheckSlashing;
-use lst_common::types::LstResult;
+
 use crate::{msg::InstantiateMsg, state::HUB_CONTRACT};
 
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
@@ -132,7 +132,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
 /// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: lst_common::MigrateMsg) -> LstResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
 }
