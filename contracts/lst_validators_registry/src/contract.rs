@@ -299,10 +299,7 @@ fn query_validators(deps: Deps) -> LstResult<Vec<ValidatorResponse>> {
 fn query_exclude_list(deps: Deps) -> LstResult<Vec<String>> {
     let excluded_lists = VALIDATOR_EXCLUDE_LIST
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|item| match item {
-            Ok(i) => Some(i),
-            Err(_) => None,
-        })
+        .filter_map(|item| item.ok())
         .collect::<Vec<String>>();
 
     Ok(excluded_lists)
