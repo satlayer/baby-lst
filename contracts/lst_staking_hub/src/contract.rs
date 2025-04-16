@@ -426,12 +426,12 @@ fn withdraw_all_rewards(
     Ok(messages)
 }
 
+/// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
+/// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default().add_attribute("migrate", "successful"))
+    Ok(Response::default())
 }
 
 fn prepare_wrapped_begin_redelegate_msg(

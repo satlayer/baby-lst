@@ -177,12 +177,12 @@ fn query_config(deps: Deps) -> LstResult<Config> {
     Ok(CONFIG.load(deps.storage)?)
 }
 
+/// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
+/// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default().add_attribute("migrate", "successful"))
+    Ok(Response::default())
 }
 
 fn compute_fee(amount: Uint128, fee_rate: Decimal) -> Uint128 {
