@@ -307,10 +307,7 @@ fn query_exclude_list(deps: Deps) -> LstResult<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        contract::{instantiate, query_config, query_exclude_list, remove_validator},
-        helper::VALIDATOR_ADDR_PREFIX,
-    };
+    use crate::contract::{instantiate, query_config, query_exclude_list, remove_validator};
     use cosmwasm_std::{
         attr, coin, coins,
         testing::{message_info, mock_dependencies, mock_env},
@@ -318,6 +315,7 @@ mod tests {
         Validator as StdValidator, WasmMsg,
     };
     use lst_common::{
+        address::VALIDATOR_ADDR_PREFIX,
         hub::ExecuteMsg as HubExecuteMsg,
         validator::{Config, InstantiateMsg, Validator, ValidatorResponse},
         ContractError,
