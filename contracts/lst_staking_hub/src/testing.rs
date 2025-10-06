@@ -3,7 +3,10 @@
 use crate::{execute, instantiate, query};
 use cosmwasm_std::{Addr, Env};
 use cw_multi_test::{Contract, ContractWrapper};
-use lst_common::babylon::{EpochingMsg, EpochingQuery, DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT, UNSTAKING_PERIOD};
+use lst_common::babylon::{
+    EpochingMsg, EpochingQuery, DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS,
+    STAKING_EPOCH_START_BLOCK_HEIGHT, UNSTAKING_PERIOD,
+};
 use lst_common::hub::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use lst_common::testing::{BabylonApp, TestingContract};
 use serde::{Deserialize, Serialize};

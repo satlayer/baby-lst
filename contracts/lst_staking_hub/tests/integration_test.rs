@@ -6,7 +6,10 @@ use cw20::BalanceResponse;
 use cw20::Cw20ExecuteMsg::IncreaseAllowance;
 use cw_multi_test::{Executor, StakingInfo};
 use lst_common::address::VALIDATOR_ADDR_PREFIX;
-use lst_common::babylon::{DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT, UNSTAKING_PERIOD};
+use lst_common::babylon::{
+    DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT,
+    UNSTAKING_PERIOD,
+};
 use lst_common::hub::ExecuteMsg::{Stake, Unstake, UpdateConfig};
 use lst_common::hub::PendingDelegation as PendingDelegationRes;
 use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
@@ -14,7 +17,7 @@ use lst_common::testing::{BabylonApp, TestingContract};
 use lst_common::validator::ExecuteMsg::AddValidator;
 use lst_common::validator::Validator as LSTValidator;
 use lst_reward_dispatcher::testing::RewardDispatcherContract;
-use lst_staking_hub::testing::{StakingHubContract};
+use lst_staking_hub::testing::StakingHubContract;
 use lst_token::testing::TokenContract;
 use lst_validators_registry::testing::ValidatorRegistryContract;
 
@@ -126,8 +129,14 @@ fn test_instantiate() {
     assert_eq!(tc.staking_hub.init.epoch_length, EPOCH_LENGTH);
     assert_eq!(tc.staking_hub.init.unstaking_period, UNSTAKING_PERIOD);
     assert_eq!(tc.staking_hub.init.staking_coin_denom, DENOM);
-    assert_eq!(tc.staking_hub.init.staking_epoch_length_blocks, STAKING_EPOCH_LENGTH_BLOCKS);
-    assert_eq!(tc.staking_hub.init.staking_epoch_start_block_height, STAKING_EPOCH_START_BLOCK_HEIGHT);
+    assert_eq!(
+        tc.staking_hub.init.staking_epoch_length_blocks,
+        STAKING_EPOCH_LENGTH_BLOCKS
+    );
+    assert_eq!(
+        tc.staking_hub.init.staking_epoch_start_block_height,
+        STAKING_EPOCH_START_BLOCK_HEIGHT
+    );
 }
 
 #[test]
@@ -237,7 +246,8 @@ fn test_stake_unstake_within_same_epoch() {
         }
     );
 
-    app.next_epoch().expect("Failed to fast forward to next epoch");
+    app.next_epoch()
+        .expect("Failed to fast forward to next epoch");
 
     let pending_delegation2: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();

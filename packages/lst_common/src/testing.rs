@@ -1,5 +1,8 @@
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
-use crate::babylon::{BabylonModule, EpochingMsg, EpochingQuery, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT};
+use crate::babylon::{
+    BabylonModule, EpochingMsg, EpochingQuery, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS,
+    STAKING_EPOCH_START_BLOCK_HEIGHT,
+};
 use crate::babylon_msg::MsgWrappedDelegate;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
@@ -149,13 +152,14 @@ impl BabylonApp {
     pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
         let sender = self.api().addr_make("epoching");
         let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
-        
+
         // fast forward the block height to the next epoch
         self.update_block(|block_info: &mut BlockInfo| {
             let passed_epoch = block_info.height - STAKING_EPOCH_START_BLOCK_HEIGHT;
             let next_epoch = (passed_epoch / EPOCH_LENGTH) + 1;
-            block_info.height = STAKING_EPOCH_START_BLOCK_HEIGHT + (next_epoch * STAKING_EPOCH_LENGTH_BLOCKS);
-        } );
+            block_info.height =
+                STAKING_EPOCH_START_BLOCK_HEIGHT + (next_epoch * STAKING_EPOCH_LENGTH_BLOCKS);
+        });
 
         res
     }
