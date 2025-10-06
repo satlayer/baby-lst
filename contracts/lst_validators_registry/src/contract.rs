@@ -81,12 +81,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
     }
 }
 
+/// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
+/// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default().add_attribute("migrate", "successful"))
+    Ok(Response::default())
 }
 
 fn add_validator(
@@ -299,11 +299,437 @@ fn query_validators(deps: Deps) -> LstResult<Vec<ValidatorResponse>> {
 fn query_exclude_list(deps: Deps) -> LstResult<Vec<String>> {
     let excluded_lists = VALIDATOR_EXCLUDE_LIST
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|item| match item {
-            Ok(i) => Some(i),
-            Err(_) => None,
-        })
+        .filter_map(|item| item.ok())
         .collect::<Vec<String>>();
 
     Ok(excluded_lists)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        contract::{instantiate, query_config, query_exclude_list, remove_validator},
+        helper::VALIDATOR_ADDR_PREFIX,
+    };
+    use cosmwasm_std::{
+        attr, coin, coins,
+        testing::{message_info, mock_dependencies, mock_env},
+        to_json_binary, CosmosMsg, Decimal, FullDelegation, SubMsg, Uint128,
+        Validator as StdValidator, WasmMsg,
+    };
+    use lst_common::{
+        hub::ExecuteMsg as HubExecuteMsg,
+        validator::{Config, InstantiateMsg, Validator, ValidatorResponse},
+        ContractError,
+    };
+
+    use super::{add_validator, process_redelegations, query_validators, update_config};
+
+    #[test]
+    fn test_instantiate() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        let mock_api = deps.api.with_prefix(VALIDATOR_ADDR_PREFIX);
+        let validator1 = mock_api.addr_make("validator1");
+        let validator2 = mock_api.addr_make("validator2");
+
+        let validator1_info = StdValidator::create(
+            validator1.to_string(),
+            Decimal::percent(5),
+            Decimal::percent(10),
+            Decimal::percent(1),
+        );
+        let validator2_info = StdValidator::create(
+            validator2.to_string(),
+            Decimal::percent(5),
+            Decimal::percent(10),
+            Decimal::percent(1),
+        );
+
+        let validator1_full_delegation = FullDelegation::create(
+            hub_contract.clone(),
+            validator1.to_string(),
+            coin(100, denom),
+            coin(120, denom),
+            coins(1000, denom),
+        );
+        let validator2_full_delegation = FullDelegation::create(
+            hub_contract.clone(),
+            validator2.to_string(),
+            coin(200, denom),
+            coin(220, denom),
+            coins(2000, denom),
+        );
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        deps.querier.staking.update(
+            denom,
+            &[validator1_info, validator2_info],
+            &[validator1_full_delegation, validator2_full_delegation],
+        );
+        let msg = InstantiateMsg {
+            validators: vec![
+                Validator {
+                    address: validator1.to_string(),
+                },
+                Validator {
+                    address: validator2.to_string(),
+                },
+            ],
+            hub_contract: hub_contract.to_string(),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    }
+
+    #[test]
+    fn test_add_validator() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                validators: vec![],
+                hub_contract: hub_contract.to_string(),
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        let mock_api = deps.api.with_prefix(VALIDATOR_ADDR_PREFIX);
+        let validator1 = mock_api.addr_make("validator1");
+
+        // add validator successfully
+        {
+            let validator1_info = StdValidator::create(
+                validator1.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+
+            let validator1_full_delegation = FullDelegation::create(
+                hub_contract,
+                validator1.to_string(),
+                coin(100, denom),
+                coin(120, denom),
+                coins(1000, denom),
+            );
+
+            deps.querier
+                .staking
+                .update(denom, &[validator1_info], &[validator1_full_delegation]);
+
+            let validator = Validator {
+                address: validator1.to_string(),
+            };
+            let response = add_validator(deps.as_mut(), env.clone(), info, validator).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "add_validator"),
+                    attr("validator", validator1.to_string())
+                ]
+            );
+        }
+
+        // unauthorized error
+        {
+            let new_owner = deps.api.addr_make("new_owner");
+            let info = message_info(&new_owner, &[]);
+
+            let validator = Validator {
+                address: validator1.to_string(),
+            };
+            let err = add_validator(deps.as_mut(), env.clone(), info, validator).unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // query validators
+        {
+            let result = query_validators(deps.as_ref()).unwrap();
+            assert_eq!(
+                result,
+                vec![ValidatorResponse {
+                    total_delegated: Uint128::new(100),
+                    address: validator1.to_string(),
+                }]
+            )
+        }
+    }
+
+    #[test]
+    fn test_remove_validator() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                validators: vec![],
+                hub_contract: hub_contract.to_string(),
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        let mock_api = deps.api.with_prefix(VALIDATOR_ADDR_PREFIX);
+        let validator1 = mock_api.addr_make("validator1");
+
+        // add validator successfully
+        {
+            let validator1_info = StdValidator::create(
+                validator1.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+
+            let validator1_full_delegation = FullDelegation::create(
+                env.clone().contract.address,
+                validator1.to_string(),
+                coin(100, denom),
+                coin(120, denom),
+                coins(1000, denom),
+            );
+
+            deps.querier
+                .staking
+                .update(denom, &[validator1_info], &[validator1_full_delegation]);
+
+            let validator = Validator {
+                address: validator1.to_string(),
+            };
+            add_validator(deps.as_mut(), env.clone(), info.clone(), validator).unwrap();
+        }
+
+        // remove validator successfully
+        {
+            let response = remove_validator(deps.as_mut(), info, validator1.to_string()).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "remove_validator"),
+                    attr("validator", validator1.to_string())
+                ]
+            );
+        }
+
+        // query validators
+        {
+            let result = query_validators(deps.as_ref()).unwrap();
+            assert_eq!(result, vec![])
+        }
+
+        // query exclude list
+        {
+            let result = query_exclude_list(deps.as_ref()).unwrap();
+            assert_eq!(result, vec![validator1.to_string()])
+        }
+
+        // unauthorized error
+        {
+            let new_owner = deps.api.addr_make("new_owner");
+            let info = message_info(&new_owner, &[]);
+
+            let err = remove_validator(deps.as_mut(), info, validator1.to_string()).unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+    }
+
+    #[test]
+    fn test_process_redelegations() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let owner = deps.api.addr_make("owner");
+        let denom = "denom";
+
+        let mock_api = deps.api.with_prefix(VALIDATOR_ADDR_PREFIX);
+        let validator1 = mock_api.addr_make("validator1");
+        let validator2 = mock_api.addr_make("validator2");
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let validator1_info = StdValidator::create(
+                validator1.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+            let validator2_info = StdValidator::create(
+                validator2.to_string(),
+                Decimal::percent(5),
+                Decimal::percent(10),
+                Decimal::percent(1),
+            );
+
+            let validator1_full_delegation = FullDelegation::create(
+                hub_contract.clone(),
+                validator1.to_string(),
+                coin(100, denom),
+                coin(120, denom),
+                coins(1000, denom),
+            );
+            let validator2_full_delegation = FullDelegation::create(
+                hub_contract.clone(),
+                validator2.to_string(),
+                coin(200, denom),
+                coin(220, denom),
+                coins(2000, denom),
+            );
+
+            // instantiate successfully
+            deps.querier.staking.update(
+                denom,
+                &[validator1_info, validator2_info],
+                &[validator1_full_delegation, validator2_full_delegation],
+            );
+            let msg = InstantiateMsg {
+                validators: vec![
+                    Validator {
+                        address: validator1.to_string(),
+                    },
+                    Validator {
+                        address: validator2.to_string(),
+                    },
+                ],
+                hub_contract: hub_contract.to_string(),
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // remove validator successfully
+        {
+            let response = remove_validator(deps.as_mut(), info, validator1.to_string()).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "remove_validator"),
+                    attr("validator", validator1.to_string())
+                ]
+            );
+        }
+
+        // process redelegations successfully
+        {
+            let response = process_redelegations(deps.as_mut()).unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![attr("action", "process_redelegation")]
+            );
+
+            let redelegate_proxy_msg = HubExecuteMsg::RedelegateProxy {
+                src_validator: validator1.to_string(),
+                redelegations: vec![(validator2.to_string(), coin(100, denom))],
+            };
+
+            assert_eq!(
+                response.messages,
+                vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: hub_contract.to_string(),
+                    msg: to_json_binary(&redelegate_proxy_msg).unwrap(),
+                    funds: vec![],
+                })),]
+            )
+        }
+    }
+
+    #[test]
+    fn test_update_config() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let owner = deps.api.addr_make("owner");
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                validators: vec![],
+                hub_contract: hub_contract.to_string(),
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        let new_owner = deps.api.addr_make("new_owner");
+        let new_hub_contract = deps.api.addr_make("new_hub_contract");
+
+        // update config successfully
+        {
+            let response = update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(new_owner.to_string()),
+                Some(new_hub_contract.to_string()),
+            )
+            .unwrap();
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("owner", new_owner.to_string()),
+                    attr("hub", new_hub_contract.to_string())
+                ]
+            )
+        }
+
+        // query validators
+        {
+            let result = query_config(deps.as_ref()).unwrap();
+            assert_eq!(
+                result,
+                to_json_binary(&Config {
+                    owner: new_owner,
+                    hub_contract: new_hub_contract,
+                })
+                .unwrap()
+            )
+        }
+
+        // unauthorized error
+        {
+            let wrong_owner = deps.api.addr_make("wrong_owner");
+            let info = message_info(&wrong_owner, &[]);
+
+            let err =
+                update_config(deps.as_mut(), env.clone(), info.clone(), None, None).unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+    }
 }

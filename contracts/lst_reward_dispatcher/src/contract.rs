@@ -177,12 +177,12 @@ fn query_config(deps: Deps) -> LstResult<Config> {
     Ok(CONFIG.load(deps.storage)?)
 }
 
+/// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
+/// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default().add_attribute("migrate", "successful"))
+    Ok(Response::default())
 }
 
 fn compute_fee(amount: Uint128, fee_rate: Decimal) -> Uint128 {
@@ -195,4 +195,296 @@ fn is_authorized_sender(deps: Deps, sender: Addr) -> LstResult<()> {
         return Err(ContractError::Unauthorized {});
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::contract::instantiate;
+    use cosmwasm_std::{
+        attr, coins, from_json,
+        testing::{message_info, mock_dependencies, mock_env},
+        to_json_binary, BankMsg, ContractResult, CosmosMsg, Decimal, SubMsg, SystemError,
+        SystemResult, WasmMsg, WasmQuery,
+    };
+    use lst_common::{
+        hub::{ExecuteMsg as HubExecuteMsg, Parameters, QueryMsg as HubQueryMsg},
+        rewards_msg::InstantiateMsg,
+        ContractError,
+    };
+
+    use super::{execute_dispatch_rewards, execute_update_config, query_config};
+
+    #[test]
+    fn test_instantiate() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let sender = deps.api.addr_make("sender");
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let denom = "denom";
+        let fee_addr = deps.api.addr_make("fee_addr");
+
+        let info = message_info(&sender, &[]);
+
+        // instantiate successfully
+        {
+            let msg = InstantiateMsg {
+                hub_contract: hub_contract.to_string(),
+                reward_denom: denom.to_string(),
+                fee_addr: fee_addr.to_string(),
+                fee_rate: "0.1".parse().unwrap(),
+            };
+
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        {
+            let msg = InstantiateMsg {
+                hub_contract: hub_contract.to_string(),
+                reward_denom: denom.to_string(),
+                fee_addr: fee_addr.to_string(),
+                fee_rate: "0.4".parse().unwrap(),
+            };
+
+            let err = instantiate(deps.as_mut(), env, info, msg).unwrap_err();
+            assert_eq!(err, ContractError::InvalidFeeRate {});
+        }
+    }
+
+    #[test]
+    fn test_execute_update_config() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let denom = "denom";
+        let fee_addr = deps.api.addr_make("fee_addr");
+        let fee_rate = Decimal::percent(10);
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate
+        {
+            let msg = InstantiateMsg {
+                hub_contract: hub_contract.to_string(),
+                reward_denom: denom.to_string(),
+                fee_addr: fee_addr.to_string(),
+                fee_rate,
+            };
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // update nothing
+        {
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+            let config = query_config(deps.as_ref()).unwrap();
+            assert_eq!(config.owner, owner);
+            assert_eq!(config.hub_contract, hub_contract);
+            assert_eq!(config.reward_denom, denom.to_string());
+            assert_eq!(config.fee_addr, fee_addr);
+            assert_eq!(config.fee_rate, fee_rate);
+        }
+
+        let new_owner = deps.api.addr_make("new_owner");
+
+        // update config
+        {
+            let new_hub_contract = deps.api.addr_make("new_hub_contract");
+            let new_fee_addr = deps.api.addr_make("new_fee_addr");
+            let new_fee_rate = Decimal::percent(20);
+
+            execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                Some(new_owner.to_string()),
+                Some(new_hub_contract.to_string()),
+                Some(new_fee_addr.to_string()),
+                Some(new_fee_rate),
+            )
+            .unwrap();
+
+            let config = query_config(deps.as_ref()).unwrap();
+            assert_eq!(config.owner, new_owner);
+            assert_eq!(config.hub_contract, new_hub_contract);
+            assert_eq!(config.reward_denom, denom.to_string());
+            assert_eq!(config.fee_addr, new_fee_addr);
+            assert_eq!(config.fee_rate, new_fee_rate);
+        }
+
+        // unauthorized error
+        {
+            let err = execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+
+        // update invalid fee rate
+        {
+            let info = message_info(&new_owner, &[]);
+            let new_fee_rate = Decimal::percent(40);
+
+            let err = execute_update_config(
+                deps.as_mut(),
+                env.clone(),
+                info.clone(),
+                None,
+                None,
+                None,
+                Some(new_fee_rate),
+            )
+            .unwrap_err();
+
+            assert_eq!(err, ContractError::InvalidFeeRate {});
+        }
+    }
+
+    #[test]
+    fn test_execute_dispatch_rewards() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let owner = deps.api.addr_make("owner");
+        let hub_contract = deps.api.addr_make("hub_contract");
+        let denom = "denom";
+        let fee_addr = deps.api.addr_make("fee_addr");
+        let fee_rate = Decimal::percent(10);
+
+        let info = message_info(&owner, &[]);
+
+        // instantiate
+        {
+            let msg = InstantiateMsg {
+                hub_contract: hub_contract.to_string(),
+                reward_denom: denom.to_string(),
+                fee_addr: fee_addr.to_string(),
+                fee_rate,
+            };
+            instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // dispatch rewards successfully
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: HubQueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        HubQueryMsg::Parameters {} => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&Parameters::default()).unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(SystemError::Unknown {}),
+            });
+
+            let balance = coins(1000, denom);
+            deps.querier
+                .bank
+                .update_balance(env.clone().contract.address, balance);
+
+            let info = message_info(&hub_contract, &[]);
+            let response = execute_dispatch_rewards(deps.as_mut(), env.clone(), info).unwrap();
+            assert_eq!(
+                response.messages,
+                vec![
+                    SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+                        to_address: fee_addr.to_string(),
+                        amount: coins(100, denom)
+                    })),
+                    SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: hub_contract.to_string(),
+                        msg: to_json_binary(&HubExecuteMsg::StakeRewards {}).unwrap(),
+                        funds: coins(900, denom)
+                    }))
+                ]
+            );
+
+            assert_eq!(
+                response.attributes,
+                vec![
+                    attr("action", "claim_rewards"),
+                    attr("reward_amt", "900denom".to_string()),
+                    attr("fee", "100denom".to_string()),
+                ]
+            );
+        }
+
+        // hub contract paused error
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: HubQueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        HubQueryMsg::Parameters {} => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&&Parameters {
+                                epoch_length: 100,
+                                staking_coin_denom: "denom".to_string(),
+                                unstaking_period: 100,
+                                paused: true,
+                            })
+                            .unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(SystemError::Unknown {}),
+            });
+
+            let info = message_info(&hub_contract, &[]);
+            let err = execute_dispatch_rewards(deps.as_mut(), env.clone(), info).unwrap_err();
+
+            assert_eq!(err, ContractError::HubPaused {});
+        }
+
+        // unauthorized error
+        {
+            deps.querier.update_wasm(move |query| match query {
+                WasmQuery::Smart {
+                    contract_addr: _,
+                    msg,
+                } => {
+                    let msg: HubQueryMsg = from_json(msg).unwrap();
+                    match msg {
+                        HubQueryMsg::Parameters {} => SystemResult::Ok(ContractResult::Ok(
+                            to_json_binary(&Parameters::default()).unwrap(),
+                        )),
+                        _ => panic!("unexpected query"),
+                    }
+                }
+                _ => SystemResult::Err(SystemError::Unknown {}),
+            });
+
+            let info = message_info(&owner, &[]);
+            let err = execute_dispatch_rewards(deps.as_mut(), env.clone(), info).unwrap_err();
+
+            assert_eq!(err, ContractError::Unauthorized {});
+        }
+    }
 }
