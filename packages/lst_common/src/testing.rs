@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use crate::babylon::{
     BabylonModule, EpochingMsg, EpochingQuery, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS,
