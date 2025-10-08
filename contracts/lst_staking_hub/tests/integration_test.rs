@@ -1,7 +1,7 @@
 #![cfg(any(test, feature = "testing"))]
 
 use cosmwasm_std::testing::mock_env;
-use cosmwasm_std::{coin, coins, Decimal, Uint128, Validator};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Uint128, Validator};
 use cw20::BalanceResponse;
 use cw20::Cw20ExecuteMsg::IncreaseAllowance;
 use cw_multi_test::{Executor, StakingInfo};
@@ -28,22 +28,29 @@ struct TestContracts {
     reward_dispatcher: RewardDispatcherContract,
 }
 
-const UNBONDING_TIME: u64 = 60; // time between unbonding and receiving tokens back (in seconds)
+const UNBONDING_TIME: u64 = 180000; // time between unbonding and receiving tokens back (in seconds) - 50hours
 
-fn instantiate() -> (BabylonApp, TestContracts) {
+fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
     let block = mock_env().block;
+    let mut validators: Vec<(Addr, Validator)> = vec![];
 
     let mut app = BabylonApp::new(|router, api, storage| {
         let owner = api.addr_make("owner");
-        let validator1_addr = api
-            .with_prefix(VALIDATOR_ADDR_PREFIX)
-            .addr_make("validator1");
-        let validator1 = Validator::new(
-            validator1_addr.to_string(),
-            Decimal::percent(10), // 10% commission
-            Decimal::percent(90), // 90% max comission
-            Decimal::percent(1),  // 1% max change rate
-        );
+
+
+        for i in 1..=10 {
+            let validator_addr = api
+                .with_prefix(VALIDATOR_ADDR_PREFIX)
+                .addr_make(format!("validator{}", i).as_str());
+            let validator = Validator::new(
+                validator_addr.to_string(),
+                Decimal::percent(10), // 10% commission
+                Decimal::percent(90), // 90% max comission
+                Decimal::percent(1),  // 1% max change rate
+            );
+            validators.push((validator_addr, validator));
+        }
+
         router
             .bank
             .init_balance(storage, &owner, vec![coin(Uint128::MAX.u128(), DENOM)])
@@ -60,11 +67,12 @@ fn instantiate() -> (BabylonApp, TestContracts) {
                 },
             )
             .unwrap();
-        // add a validator1
-        router
-            .staking
-            .add_validator(api, storage, &block, validator1)
-            .unwrap();
+        for (_addr, validator) in validators.clone() {
+            router
+                .staking
+                .add_validator(api, storage, &block, validator)
+                .unwrap();
+        }
     });
 
     let env = mock_env();
@@ -97,18 +105,20 @@ fn instantiate() -> (BabylonApp, TestContracts) {
         )
         .unwrap();
 
-    // register validator
-    validator_registry
-        .execute(
-            &mut app,
-            &owner,
-            &AddValidator {
-                validator: LSTValidator {
-                    address: validator1.to_string(),
+    // register validators
+    for (_addr, validator) in validators.clone() {
+        validator_registry
+            .execute(
+                &mut app,
+                &owner,
+                &AddValidator {
+                    validator: LSTValidator {
+                        address: validator.address,
+                    },
                 },
-            },
-        )
-        .expect("Failed to add validator");
+            )
+            .expect("Failed to add validator");
+    }
 
     (
         app,
@@ -118,12 +128,13 @@ fn instantiate() -> (BabylonApp, TestContracts) {
             validator_registry,
             reward_dispatcher,
         },
+        validators
     )
 }
 
 #[test]
 fn test_instantiate() {
-    let (_app, tc) = instantiate();
+    let (_app, tc, _validators) = instantiate();
 
     // Check that the contract was instantiated correctly
     assert_eq!(tc.staking_hub.init.epoch_length, EPOCH_LENGTH);
@@ -141,7 +152,7 @@ fn test_instantiate() {
 
 #[test]
 fn test_stake_unstake_within_same_epoch() {
-    let (mut app, tc) = instantiate();
+    let (mut app, tc, _validators) = instantiate();
 
     let owner = app.api().addr_make("owner");
     let staker = app.api().addr_make("staker");
@@ -264,4 +275,239 @@ fn test_stake_unstake_within_same_epoch() {
     // assert that the exchange rate is 1:1 after end of epoch
     let exchange_rate: Uint128 = tc.staking_hub.query(&app, &ExchangeRate {}).unwrap();
     assert_eq!(exchange_rate, Uint128::new(1));
+}
+
+#[test]
+fn test_smoke_unstake() {
+    let (mut app, tc, _validators) = instantiate();
+    let owner = app.api().addr_make("owner");
+
+    let current_batch: lst_common::hub::CurrentBatch = tc
+        .staking_hub
+        .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
+        .unwrap();
+
+    println!("Current Batch: {:#?}", current_batch);
+
+    let mut stakers = vec![];
+
+    for i in 1..=200 {
+        let staker = app.api().addr_make(format!("staker{}", i).as_str());
+        app.send_tokens(owner.clone(), staker.clone(), &coins(1_000_000, DENOM))
+            .unwrap();
+        stakers.push(staker);
+    }
+
+    // the first 100 stakers stake 1_000_000 BABY each
+    for staker in stakers.iter().take(100) {
+        tc.staking_hub
+            .execute_with_funds(&mut app, staker, &Stake {}, coins(1_000_000, DENOM))
+            .unwrap();
+
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(1_000_000));
+    }
+
+    // check hub balance
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::new(100_000_000));
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 0,
+            pending_staking_amount: Uint128::new(100_000_000),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+
+    let _res = app.next_epoch()
+        .expect("Failed to fast forward to next epoch");
+
+    // the next 100 stakers stake 1_000_000 BABY each
+    for staker in stakers.iter().skip(100) {
+        tc.staking_hub
+            .execute_with_funds(&mut app, staker, &Stake {}, coins(1_000_000, DENOM))
+            .unwrap();
+
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(1_000_000));
+    }
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::new(100_000_000));
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 360,
+            pending_staking_amount: Uint128::new(100_000_000),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+    let _res = app.next_epoch()
+        .expect("Failed to fast forward to next epoch");
+
+    let validators: Vec<lst_common::validator::ValidatorResponse> = tc
+        .validator_registry
+        .query(&app, &lst_common::validator::QueryMsg::ValidatorsDelegation {  })
+        .unwrap();
+
+    for validator in validators {
+        // 200 stakers, each staking 1_000_000 BABY, total 200_000_000 BABY
+        // delegated equally to 10 validators, each validator should have 2_000_000 BABY delegated
+        let delegated_amnt = validator.total_delegated;
+        println!("Validator: {}, Delegated: {}", validator.address, delegated_amnt);
+        assert!(delegated_amnt.u128() == 20_000_000);
+
+    }
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 720,
+            pending_staking_amount: Uint128::zero(),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+    let current_batch: lst_common::hub::CurrentBatch = tc
+        .staking_hub
+        .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
+        .unwrap();
+
+    println!("Current Batch: {:#?}", current_batch);
+
+    // Don't have any epoching msg for this one
+    // Fast forwarding to next epoch just to simulate some time passing
+    let _res = app.next_many_epochs(3).expect("Failed to fast forward to next epoch");
+
+
+    for i in 0..stakers.clone().len() {
+        // give allowance to staking hub
+        tc.lst_token
+            .execute(
+                &mut app,
+                &stakers[i],
+                &IncreaseAllowance {
+                    spender: tc.staking_hub.addr().to_string(),
+                    amount: Uint128::new(1_000_000),
+                    expires: None,
+                },
+            )
+            .unwrap();
+        // unstake 1_000_000 LST
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &stakers[i],
+                &Unstake {
+                    amount: Uint128::new(1_000_000),
+                },
+            )
+            .unwrap();
+
+        let current_batch: lst_common::hub::CurrentBatch = tc
+            .staking_hub
+            .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
+            .unwrap();
+
+        println!("N-th Unstaker {:#?}, Current Batch: {:#?}", i, current_batch);
+        let pending_delegation: PendingDelegationRes =
+            tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+        println!("Pending Delegation: {:#?}", pending_delegation);
+        let hub_balance = app
+            .wrap()
+            .query_balance(tc.staking_hub.addr(), DENOM)
+            .unwrap();
+        println!("Hub Balance: {:#?}", hub_balance);
+        println!("-----------------------------------");
+
+    }
+
+    // Inducing epoch boundary
+    // epoch length is 7200 sec, unbonding period is 180000 sec, so we need to fast forward at
+    // least 25 epochs
+    let _res = app.next_many_epochs(25).expect("Failed to fast forward to next epoch");
+
+    // usually Undelegation is attempted at every unstake if it's past epoch boundary
+    // But since the above loop is unstaking in single epoch, we need to manually call it here
+    tc.staking_hub
+        .execute(
+            &mut app,
+            &owner,
+            &lst_common::hub::ExecuteMsg::ProcessUndelegations {  },
+        )
+        .unwrap();
+
+
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 10800,
+            pending_staking_amount: Uint128::zero(),
+            pending_unstaking_amount: Uint128::new(199_000_000),
+        }
+    );
+
+
+    app.next_many_epochs(25)
+        .expect("Failed to fast forward to next epoch");
+
+    // let pending_delegation: PendingDelegationRes =
+    //     tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    // assert_eq!(
+    //     pending_delegation,
+    //     PendingDelegationRes {
+    //         staking_epoch_length_blocks: 360,
+    //         staking_epoch_start_block_height: 11520,
+    //         pending_staking_amount: Uint128::zero(),
+    //         pending_unstaking_amount: Uint128::zero(),
+    //     }
+    // );
+
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::new(200_000_000));
+
+
+
 }
