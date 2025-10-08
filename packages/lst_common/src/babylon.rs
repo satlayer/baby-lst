@@ -18,7 +18,7 @@ use std::fmt::Debug;
 // CONST
 pub const EPOCH_LENGTH: u64 = 7200;
 pub const DENOM: &str = "BABY";
-pub const UNSTAKING_PERIOD: u64 = 64800;
+pub const UNSTAKING_PERIOD: u64 = 183600;
 pub const STAKING_EPOCH_START_BLOCK_HEIGHT: u64 = 0;
 pub const STAKING_EPOCH_LENGTH_BLOCKS: u64 = 360;
 
@@ -115,6 +115,10 @@ pub enum EpochingMsg {
         validator: String,
         amount: Coin,
     },
+    Undelegate {
+        validator: String,
+        amount: Coin,
+    },
 
     NextEpoch {},
 }
@@ -176,6 +180,22 @@ impl Module for BabylonModule {
                     .add_attribute("validator", &validator)
                     .add_attribute("amount", format!("{}{}", amount.amount, amount.denom))];
 
+                Ok(AppResponse {
+                    events,
+                    ..Default::default()
+                })
+            }
+
+            EpochingMsg::Undelegate { validator, amount } => {
+                let msg = StakingMsg::Undelegate {
+                    validator: convert_addr_by_prefix(&validator, VALIDATOR_ADDR_PREFIX),
+                    amount: amount.clone(),
+                };
+
+                self.push_msg(storage, &EpochingMsgQueueItem::new(msg.into(), sender))?;
+                let events = vec![Event::new("undelegate")
+                    .add_attribute("validator", &validator)
+                    .add_attribute("amount", format!("{}{}", amount.amount, amount.denom))];
                 Ok(AppResponse {
                     events,
                     ..Default::default()

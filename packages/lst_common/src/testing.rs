@@ -5,7 +5,7 @@ use crate::babylon::{
     BabylonModule, EpochingMsg, EpochingQuery, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS,
     STAKING_EPOCH_START_BLOCK_HEIGHT,
 };
-use crate::babylon_msg::MsgWrappedDelegate;
+use crate::babylon_msg::{ MsgWrappedDelegate, MsgWrappedUndelegate };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env,
@@ -52,6 +52,7 @@ impl Stargate for CustomStargate {
         ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
+        // println!(">> CustomStargate caught AnyMsg: {:#?}", msg.type_url.as_str());
         match msg.type_url.as_str() {
             "/babylon.epoching.v1.MsgWrappedDelegate" => {
                 // Handle MsgDelegate to validator - reroute to default staking module
@@ -69,6 +70,38 @@ impl Stargate for CustomStargate {
                     EpochingMsg::Delegate {
                         validator: convert_addr_by_prefix(
                             &msg_delegate.validator_address,
+                            VALIDATOR_ADDR_PREFIX,
+                        ),
+                        amount: Coin {
+                            denom: amount.denom,
+                            amount: Uint128::from_str(&amount.amount.to_string())?,
+                        },
+                    }
+                    .to_binary()
+                    .as_slice(),
+                )?;
+
+                // send the MsgDelegate to the staking module
+                router.execute(api, storage, block, sender, CosmosMsg::Custom(custom_msg))
+            }
+
+            "/babylon.epoching.v1.MsgWrappedUndelegate" => {
+                println!(">> CustomStargate caught MsgWrappedUndelegate");
+                // Handle MsgUndelegate to validator - reroute to default staking module
+                let msg: MsgWrappedUndelegate = MsgWrappedUndelegate::decode(msg.value.as_slice())?;
+                let msg_undelegate = msg
+                    .msg
+                    .ok_or(StdError::generic_err("Missing MsgUnDelegate"))?;
+
+                let amount = msg_undelegate
+                    .amount
+                    .ok_or(StdError::generic_err("Missing amount"))?;
+
+                // TODO: fix this type conversion hack
+                let custom_msg: ExecC = serde_json::from_slice(
+                    EpochingMsg::Undelegate {
+                        validator: convert_addr_by_prefix(
+                            &msg_undelegate.validator_address,
                             VALIDATOR_ADDR_PREFIX,
                         ),
                         amount: Coin {
@@ -152,18 +185,39 @@ impl BabylonApp {
     }
 
     pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
+
         let sender = self.api().addr_make("epoching");
         let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
 
         // fast forward the block height to the next epoch
         self.update_block(|block_info: &mut BlockInfo| {
-            let passed_epoch = block_info.height - STAKING_EPOCH_START_BLOCK_HEIGHT;
-            let next_epoch = (passed_epoch / EPOCH_LENGTH) + 1;
-            block_info.height =
-                STAKING_EPOCH_START_BLOCK_HEIGHT + (next_epoch * STAKING_EPOCH_LENGTH_BLOCKS);
+            let passed_blocks   = block_info.height.saturating_sub(STAKING_EPOCH_START_BLOCK_HEIGHT);
+            let current_epoch   = passed_blocks / STAKING_EPOCH_LENGTH_BLOCKS;
+            let next_epoch      = current_epoch + 1;
+
+            // move to the first block *inside* the next epoch
+            let new_block_height =
+                STAKING_EPOCH_START_BLOCK_HEIGHT + next_epoch * STAKING_EPOCH_LENGTH_BLOCKS;
+
+            block_info.height = new_block_height;
+            block_info.time = block_info
+                .time
+                .plus_seconds(EPOCH_LENGTH);
+
+            // println!(">> Moved to block height: {}", block_info.height);
+            // println!(">> Current epoch: {}", next_epoch);
+            // println!(">> Block time: {}", block_info.time);
         });
 
         res
+    }
+
+    pub fn next_many_epochs(&mut self, n: u64) -> AnyResult<Vec<AppResponse>> {
+        let mut res = vec![];
+        for _ in 0..n {
+            res.push(self.next_epoch()?);
+        }
+        Ok(res)
     }
 }
 
