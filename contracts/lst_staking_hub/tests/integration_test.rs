@@ -37,7 +37,6 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
     let mut app = BabylonApp::new(|router, api, storage| {
         let owner = api.addr_make("owner");
 
-
         for i in 1..=10 {
             let validator_addr = api
                 .with_prefix(VALIDATOR_ADDR_PREFIX)
@@ -80,7 +79,6 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
     let staking_hub = StakingHubContract::new(&mut app, &env, None);
 
     let owner = app.api().addr_make("owner");
-    let validator1 = app.api().addr_make("validator1");
 
     // create cw20 token
     let lst_token = TokenContract::new(&mut app, &env, None);
@@ -128,7 +126,7 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
             validator_registry,
             reward_dispatcher,
         },
-        validators
+        validators,
     )
 }
 
@@ -278,16 +276,9 @@ fn test_stake_unstake_within_same_epoch() {
 }
 
 #[test]
-fn test_smoke_unstake() {
+fn test_multi_unstaker_single_epoch() {
     let (mut app, tc, _validators) = instantiate();
     let owner = app.api().addr_make("owner");
-
-    let current_batch: lst_common::hub::CurrentBatch = tc
-        .staking_hub
-        .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
-        .unwrap();
-
-    println!("Current Batch: {:#?}", current_batch);
 
     let mut stakers = vec![];
 
@@ -335,8 +326,8 @@ fn test_smoke_unstake() {
         }
     );
 
-
-    let _res = app.next_epoch()
+    let _res = app
+        .next_epoch()
         .expect("Failed to fast forward to next epoch");
 
     // the next 100 stakers stake 1_000_000 BABY each
@@ -374,21 +365,27 @@ fn test_smoke_unstake() {
         }
     );
 
-    let _res = app.next_epoch()
+    let _res = app
+        .next_epoch()
         .expect("Failed to fast forward to next epoch");
 
     let validators: Vec<lst_common::validator::ValidatorResponse> = tc
         .validator_registry
-        .query(&app, &lst_common::validator::QueryMsg::ValidatorsDelegation {  })
+        .query(
+            &app,
+            &lst_common::validator::QueryMsg::ValidatorsDelegation {},
+        )
         .unwrap();
 
     for validator in validators {
         // 200 stakers, each staking 1_000_000 BABY, total 200_000_000 BABY
         // delegated equally to 10 validators, each validator should have 2_000_000 BABY delegated
         let delegated_amnt = validator.total_delegated;
-        println!("Validator: {}, Delegated: {}", validator.address, delegated_amnt);
+        println!(
+            "Validator: {}, Delegated: {}",
+            validator.address, delegated_amnt
+        );
         assert!(delegated_amnt.u128() == 20_000_000);
-
     }
 
     let pending_delegation: PendingDelegationRes =
@@ -403,18 +400,24 @@ fn test_smoke_unstake() {
         }
     );
 
-    let current_batch: lst_common::hub::CurrentBatch = tc
-        .staking_hub
-        .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
-        .unwrap();
-
-    println!("Current Batch: {:#?}", current_batch);
-
     // Don't have any epoching msg for this one
     // Fast forwarding to next epoch just to simulate some time passing
-    let _res = app.next_many_epochs(3).expect("Failed to fast forward to next epoch");
+    let _res = app
+        .next_many_epochs(3)
+        .expect("Failed to fast forward to next epoch");
 
-
+    // Note - by this point,
+    // the batch id 1 (genesis batch) is due and time for 2nd batch to be created
+    // But due to the bug in the code the 0th unstaker is coupled to the 1st batch before creating
+    // 2nd batch
+    // Since 1st batch is alrady due, the 1st unstaker is able to undelegate faster.
+    // This is gonna keep happening for the 1st staker at every batch epoch boundary
+    // Observe the stdout in the following loop with `cargo test -- --nocapture`
+    // to see that the 1st unstaker is coupled to the batch id 1.
+    // Propose Fix: In the `execute_unstake()` function callstack of staking hub contract,
+    // before coupling the unstaker to the current batch,
+    // check if the current batch is due, if yes, process the batch and create a new batch
+    // then couple the unstaker to the new batch.
     for i in 0..stakers.clone().len() {
         // give allowance to staking hub
         tc.lst_token
@@ -438,41 +441,23 @@ fn test_smoke_unstake() {
                 },
             )
             .unwrap();
-
-        let current_batch: lst_common::hub::CurrentBatch = tc
-            .staking_hub
-            .query(&app, &lst_common::hub::QueryMsg::CurrentBatch {  })
-            .unwrap();
-
-        println!("N-th Unstaker {:#?}, Current Batch: {:#?}", i, current_batch);
-        let pending_delegation: PendingDelegationRes =
-            tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
-        println!("Pending Delegation: {:#?}", pending_delegation);
-        let hub_balance = app
-            .wrap()
-            .query_balance(tc.staking_hub.addr(), DENOM)
-            .unwrap();
-        println!("Hub Balance: {:#?}", hub_balance);
-        println!("-----------------------------------");
-
     }
 
-    // Inducing epoch boundary
-    // epoch length is 7200 sec, unbonding period is 180000 sec, so we need to fast forward at
-    // least 25 epochs
-    let _res = app.next_many_epochs(25).expect("Failed to fast forward to next epoch");
+    // let both batches aged
+    app.next_many_epochs(2)
+        .expect("Failed to fast forward to next epoch");
 
-    // usually Undelegation is attempted at every unstake if it's past epoch boundary
-    // But since the above loop is unstaking in single epoch, we need to manually call it here
+    // Usually Undelegation is attempted implicitly at every unstake req if it's past epoch boundary
+    // But since the above loop is unstaking in within the same epoch window, no undelegation is made
+    // implicitly.
+    // Keeper need to manually call it here
     tc.staking_hub
         .execute(
             &mut app,
             &owner,
-            &lst_common::hub::ExecuteMsg::ProcessUndelegations {  },
+            &lst_common::hub::ExecuteMsg::ProcessUndelegations {},
         )
         .unwrap();
-
-
 
     let pending_delegation: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
@@ -480,27 +465,16 @@ fn test_smoke_unstake() {
         pending_delegation,
         PendingDelegationRes {
             staking_epoch_length_blocks: 360,
-            staking_epoch_start_block_height: 10800,
+            staking_epoch_start_block_height: 2520,
             pending_staking_amount: Uint128::zero(),
-            pending_unstaking_amount: Uint128::new(199_000_000),
+            pending_unstaking_amount: Uint128::new(199_000_000), // <- the 1st unstaker gets
+                                                                 // batched with batch id 1,
         }
     );
 
-
+    // babylon unbonding
     app.next_many_epochs(25)
         .expect("Failed to fast forward to next epoch");
-
-    // let pending_delegation: PendingDelegationRes =
-    //     tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
-    // assert_eq!(
-    //     pending_delegation,
-    //     PendingDelegationRes {
-    //         staking_epoch_length_blocks: 360,
-    //         staking_epoch_start_block_height: 11520,
-    //         pending_staking_amount: Uint128::zero(),
-    //         pending_unstaking_amount: Uint128::zero(),
-    //     }
-    // );
 
     let hub_balance = app
         .wrap()
@@ -508,6 +482,253 @@ fn test_smoke_unstake() {
         .unwrap();
     assert_eq!(hub_balance.amount, Uint128::new(200_000_000));
 
+    tc.staking_hub
+        .execute(
+            &mut app,
+            &stakers[0],
+            &lst_common::hub::ExecuteMsg::WithdrawUnstaked {}, //<- the 1st unstaker withdraws from
+                                                               //batch id 1
+        )
+        .unwrap();
 
+    let all_history: lst_common::hub::AllHistoryResponse = tc
+        .staking_hub
+        .query(
+            &app,
+            &lst_common::hub::QueryMsg::AllHistory {
+                start_from: None,
+                limit: None,
+            },
+        )
+        .unwrap();
 
+    assert_eq!(all_history.history.len(), 2);
+    assert_eq!(all_history.history[0].released, true); // <- the 1st unstaker's made a claim and
+                                                       // the batch id 1 is due to be released
+    assert_eq!(all_history.history[1].released, false); // <- the 2nd batch is not yet released since
+                                                        // nobody in the batch has claimed just yet.
+
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::new(199_000_000));
+
+    app.next_epoch()
+        .expect("Failed to fast forward to next epoch");
+
+    for i in 1..stakers.clone().len() {
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &stakers[i],
+                &lst_common::hub::ExecuteMsg::WithdrawUnstaked {},
+            )
+            .unwrap();
+
+        let native_token_balance = app.wrap().query_balance(stakers[i].clone(), DENOM).unwrap();
+        assert_eq!(native_token_balance.amount, Uint128::new(1_000_000));
+    }
+
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::zero());
+
+    let all_history: lst_common::hub::AllHistoryResponse = tc
+        .staking_hub
+        .query(
+            &app,
+            &lst_common::hub::QueryMsg::AllHistory {
+                start_from: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(all_history.history.len(), 2);
+    assert_eq!(all_history.history[0].released, true);
+    assert_eq!(all_history.history[1].released, true);
+}
+
+#[test]
+fn test_multi_unstaker_multi_epoch() {
+    let (mut app, tc, _validators) = instantiate();
+    let owner = app.api().addr_make("owner");
+
+    let mut stakers = vec![];
+
+    // Create 200 stakers, divided into 4 groups of 50 stakers each
+    for i in 1..=200 {
+        let staker = app.api().addr_make(format!("staker{}", i).as_str());
+        app.send_tokens(owner.clone(), staker.clone(), &coins(1_000_000, DENOM))
+            .unwrap();
+        stakers.push(staker);
+    }
+
+    // all 200 stakers stake 1_000_000 BABY each
+    for staker in stakers.clone().iter() {
+        tc.staking_hub
+            .execute_with_funds(&mut app, staker, &Stake {}, coins(1_000_000, DENOM))
+            .unwrap();
+
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(1_000_000));
+    }
+
+    // check hub balance
+    let hub_balance = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(hub_balance.amount, Uint128::new(200_000_000));
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 0,
+            pending_staking_amount: Uint128::new(200_000_000),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+    let _res = app
+        .next_epoch()
+        .expect("Failed to fast forward to next epoch");
+
+    let pending_delegation: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 360,
+            pending_staking_amount: Uint128::zero(),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+    let validators: Vec<lst_common::validator::ValidatorResponse> = tc
+        .validator_registry
+        .query(
+            &app,
+            &lst_common::validator::QueryMsg::ValidatorsDelegation {},
+        )
+        .unwrap();
+
+    for validator in validators {
+        // 200 stakers, each staking 1_000_000 BABY, total 200_000_000 BABY
+        // delegated equally to 10 validators, each validator should have 2_000_000 BABY delegated
+        let delegated_amnt = validator.total_delegated;
+        println!(
+            "Validator: {}, Delegated: {}",
+            validator.address, delegated_amnt
+        );
+        assert!(delegated_amnt.u128() == 20_000_000);
+    }
+
+    // simulate sometime passed
+    app.next_many_epochs(100)
+        .expect("Failed to fast forward to next epoch");
+
+    // -------------------- Unstaking Phase --------------------
+    {
+        for i in 0..stakers.clone().len() {
+            // give allowance to staking hub
+            tc.lst_token
+                .execute(
+                    &mut app,
+                    &stakers[i],
+                    &IncreaseAllowance {
+                        spender: tc.staking_hub.addr().to_string(),
+                        amount: Uint128::new(1_000_000),
+                        expires: None,
+                    },
+                )
+                .unwrap();
+
+            // unstake 1_000_000 LST
+            tc.staking_hub
+                .execute(
+                    &mut app,
+                    &stakers[i],
+                    &Unstake {
+                        amount: Uint128::new(1_000_000),
+                    },
+                )
+                .unwrap();
+
+            app.next_epoch()
+                .expect("Failed to fast forward to next epoch");
+        }
+
+        // The undelegation for batch k is trigger by batch k+1 implicitly except for the last batch
+        // So keeper has to trigger the undelegation manually
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &owner,
+                &lst_common::hub::ExecuteMsg::ProcessUndelegations {},
+            )
+            .unwrap();
+
+        // by the end of the loop - (200 epochs passed)
+        // about 88 batches are unbonded the hub has received token back
+        // need to advance at least 25 epoch to make the last batch unbonded
+        app.next_many_epochs(25)
+            .expect("Failed to fast forward to next epoch");
+
+        let hub_balance = app
+            .wrap()
+            .query_balance(tc.staking_hub.addr(), DENOM)
+            .unwrap();
+
+        assert_eq!(hub_balance.amount, Uint128::new(200_000_000));
+    }
+
+    // simulate some time passed
+    app.next_epoch()
+        .expect("Failed to fast forward to next epoch");
+
+    // ------- Claim Phase --------
+
+    // Claim sequentially should be successful
+    for i in 0..stakers.clone().len() {
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &stakers[i],
+                &lst_common::hub::ExecuteMsg::WithdrawUnstaked {},
+            )
+            .unwrap();
+
+        let native_token_balance = app.wrap().query_balance(stakers[i].clone(), DENOM).unwrap();
+        assert_eq!(native_token_balance.amount, Uint128::new(1_000_000));
+    }
+
+    let all_history: lst_common::hub::AllHistoryResponse = tc
+        .staking_hub
+        .query(
+            &app,
+            &lst_common::hub::QueryMsg::AllHistory {
+                start_from: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    for history in all_history.history {
+        assert_eq!(history.released, true);
+    }
 }

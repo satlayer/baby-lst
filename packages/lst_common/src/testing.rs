@@ -5,7 +5,7 @@ use crate::babylon::{
     BabylonModule, EpochingMsg, EpochingQuery, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS,
     STAKING_EPOCH_START_BLOCK_HEIGHT,
 };
-use crate::babylon_msg::{ MsgWrappedDelegate, MsgWrappedUndelegate };
+use crate::babylon_msg::{MsgWrappedDelegate, MsgWrappedUndelegate};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env,
@@ -86,7 +86,6 @@ impl Stargate for CustomStargate {
             }
 
             "/babylon.epoching.v1.MsgWrappedUndelegate" => {
-                println!(">> CustomStargate caught MsgWrappedUndelegate");
                 // Handle MsgUndelegate to validator - reroute to default staking module
                 let msg: MsgWrappedUndelegate = MsgWrappedUndelegate::decode(msg.value.as_slice())?;
                 let msg_undelegate = msg
@@ -96,6 +95,9 @@ impl Stargate for CustomStargate {
                 let amount = msg_undelegate
                     .amount
                     .ok_or(StdError::generic_err("Missing amount"))?;
+
+                // println!(">> CustomStargate caught MsgWrappedUndelegate to validator: {}, amount: {}{}",
+                //     &msg_undelegate.validator_address, amount.amount, amount.denom);
 
                 // TODO: fix this type conversion hack
                 let custom_msg: ExecC = serde_json::from_slice(
@@ -185,28 +187,23 @@ impl BabylonApp {
     }
 
     pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
-
         let sender = self.api().addr_make("epoching");
         let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
 
         // fast forward the block height to the next epoch
         self.update_block(|block_info: &mut BlockInfo| {
-            let passed_blocks   = block_info.height.saturating_sub(STAKING_EPOCH_START_BLOCK_HEIGHT);
-            let current_epoch   = passed_blocks / STAKING_EPOCH_LENGTH_BLOCKS;
-            let next_epoch      = current_epoch + 1;
+            let passed_blocks = block_info
+                .height
+                .saturating_sub(STAKING_EPOCH_START_BLOCK_HEIGHT);
+            let current_epoch = passed_blocks / STAKING_EPOCH_LENGTH_BLOCKS;
+            let next_epoch = current_epoch + 1;
 
             // move to the first block *inside* the next epoch
             let new_block_height =
                 STAKING_EPOCH_START_BLOCK_HEIGHT + next_epoch * STAKING_EPOCH_LENGTH_BLOCKS;
 
             block_info.height = new_block_height;
-            block_info.time = block_info
-                .time
-                .plus_seconds(EPOCH_LENGTH);
-
-            // println!(">> Moved to block height: {}", block_info.height);
-            // println!(">> Current epoch: {}", next_epoch);
-            // println!(">> Block time: {}", block_info.time);
+            block_info.time = block_info.time.plus_seconds(EPOCH_LENGTH);
         });
 
         res
