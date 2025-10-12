@@ -8,30 +8,78 @@ use crate::babylon::{
 use crate::babylon_msg::{MsgWrappedDelegate, MsgWrappedUndelegate};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env,
-    StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env, StdError, StdResult, Storage, Timestamp, Uint128, WasmMsg
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
-    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper,
-    Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, Stargate, WasmKeeper,
+    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper, Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, StakingInfo, Stargate, WasmKeeper
 };
 use prost::Message;
 use serde::de::DeserializeOwned;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 use std::str::FromStr;
 
-pub struct CustomStargate {}
+#[derive(Clone, Debug)]
+pub struct UnbondEntry {
+    pub amount: Uint128,
+    pub completion_time: cosmwasm_std::Timestamp,
+}
+
+pub struct CustomStargate {
+    pub max_unbonding_entries: Option<u32>,
+
+    // We need interior mutability to manage unbonding entries
+    // Because `execute_any()` method's trait take &self, not &mut self
+    pub unbonding_entries: Rc<RefCell<HashMap<(String, String), Vec<UnbondEntry>>>>,
+
+    pub unbonding_time_secs: Option<u64>,
+}
 
 impl Default for CustomStargate {
     fn default() -> Self {
-        Self::new()
+        Self::new() // default to 7 entries, 7 days unbonding time
     }
 }
 
 impl CustomStargate {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            max_unbonding_entries: None,
+            unbonding_entries: Rc::new(RefCell::new(HashMap::new())),
+            unbonding_time_secs: None,
+        }
+    }
+
+    /// Drop matured entries and remove empty vectors.
+    fn prune_matured_unbondings(&self, now: Timestamp) {
+        let mut map = self.unbonding_entries.borrow_mut();
+        map.retain(|_, v| {
+            v.retain(|e| e.completion_time > now);
+            !v.is_empty()
+        });
+    }
+
+    /// Push a new unbonding entry (enforces max_entries).
+    fn add_unbonding_pair(
+        &self,
+        delegator: String,
+        validator: String,
+        amount: Uint128,
+        now: Timestamp,
+        unbonding_time_secs: u64,
+    ) -> StdResult<()> {
+        let mut map = self.unbonding_entries.borrow_mut();
+        let key = (delegator, validator);
+        let entries = map.entry(key).or_default();
+
+        entries.push(UnbondEntry {
+            amount,
+            completion_time: now.plus_seconds(unbonding_time_secs),
+        });
+        Ok(())
     }
 }
 
@@ -96,8 +144,32 @@ impl Stargate for CustomStargate {
                     .amount
                     .ok_or(StdError::generic_err("Missing amount"))?;
 
-                // println!(">> CustomStargate caught MsgWrappedUndelegate to validator: {}, amount: {}{}",
-                //     &msg_undelegate.validator_address, amount.amount, amount.denom);
+                // Simulating Max Unbonding Entries logic from Cosmos SDK staking module
+                let now = block.time;
+
+                self.prune_matured_unbondings(now);
+
+                let delegator = convert_addr_by_prefix(&msg_undelegate.delegator_address, VALIDATOR_ADDR_PREFIX);
+                let validator = convert_addr_by_prefix(&msg_undelegate.validator_address, VALIDATOR_ADDR_PREFIX);
+                let key = (delegator, validator);
+
+                let entries = self.unbonding_entries.borrow_mut()
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_default();
+
+                if entries.len() > self.max_unbonding_entries.expect("max_unbonding_entries not set") as usize {
+                    return Err(StdError::generic_err("too many unbonding delegation entries for (delegator, validator) tuple").into())
+                }
+
+                self.add_unbonding_pair(
+                    key.0.clone(),
+                    key.1.clone(),
+                    Uint128::from_str(&amount.amount.to_string())?,
+                    now,
+                    self.unbonding_time_secs.expect("unbonding_time_secs not set"),
+                )?;
+                // ---------------------------------------
 
                 // TODO: fix this type conversion hack
                 let custom_msg: ExecC = serde_json::from_slice(
@@ -117,6 +189,7 @@ impl Stargate for CustomStargate {
 
                 // send the MsgDelegate to the staking module
                 router.execute(api, storage, block, sender, CosmosMsg::Custom(custom_msg))
+
             }
             _ => {
                 // Handle other messages
@@ -186,9 +259,11 @@ impl BabylonApp {
         )
     }
 
-    pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
+    // fast forwarding epoch should not fail if underlying msg fails
+    pub fn next_epoch(&mut self) -> (AnyResult<AppResponse>, u64) {
         let sender = self.api().addr_make("epoching");
         let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
+        let epoch_boundry = self.0.block_info().height;
 
         // fast forward the block height to the next epoch
         self.update_block(|block_info: &mut BlockInfo| {
@@ -206,15 +281,15 @@ impl BabylonApp {
             block_info.time = block_info.time.plus_seconds(EPOCH_LENGTH);
         });
 
-        res
+        (res, epoch_boundry)
     }
 
-    pub fn next_many_epochs(&mut self, n: u64) -> AnyResult<Vec<AppResponse>> {
+    pub fn next_many_epochs(&mut self, n: u64) -> Vec<(AnyResult<AppResponse>, u64)> {
         let mut res = vec![];
         for _ in 0..n {
-            res.push(self.next_epoch()?);
+            res.push(self.next_epoch());
         }
-        Ok(res)
+        res
     }
 }
 

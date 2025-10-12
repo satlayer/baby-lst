@@ -66,6 +66,11 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
                 },
             )
             .unwrap();
+
+        // custom starget simulate unbonding max delegator<->validator pair
+        router.stargate.unbonding_time_secs = Some(UNBONDING_TIME);
+        router.stargate.max_unbonding_entries = Some(7);
+
         for (_addr, validator) in validators.clone() {
             router
                 .staking
@@ -255,8 +260,7 @@ fn test_stake_unstake_within_same_epoch() {
         }
     );
 
-    app.next_epoch()
-        .expect("Failed to fast forward to next epoch");
+    app.next_epoch();
 
     let pending_delegation2: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
@@ -327,8 +331,7 @@ fn test_multi_unstaker_single_epoch() {
     );
 
     let _res = app
-        .next_epoch()
-        .expect("Failed to fast forward to next epoch");
+        .next_epoch();
 
     // the next 100 stakers stake 1_000_000 BABY each
     for staker in stakers.iter().skip(100) {
@@ -366,8 +369,7 @@ fn test_multi_unstaker_single_epoch() {
     );
 
     let _res = app
-        .next_epoch()
-        .expect("Failed to fast forward to next epoch");
+        .next_epoch();
 
     let validators: Vec<lst_common::validator::ValidatorResponse> = tc
         .validator_registry
@@ -403,8 +405,7 @@ fn test_multi_unstaker_single_epoch() {
     // Don't have any epoching msg for this one
     // Fast forwarding to next epoch just to simulate some time passing
     let _res = app
-        .next_many_epochs(3)
-        .expect("Failed to fast forward to next epoch");
+        .next_many_epochs(3);
 
     // Note - by this point,
     // the batch id 1 (genesis batch) is due and time for 2nd batch to be created
@@ -444,8 +445,7 @@ fn test_multi_unstaker_single_epoch() {
     }
 
     // let both batches aged
-    app.next_many_epochs(2)
-        .expect("Failed to fast forward to next epoch");
+    app.next_many_epochs(2);
 
     // Usually Undelegation is attempted implicitly at every unstake req if it's past epoch boundary
     // But since the above loop is unstaking in within the same epoch window, no undelegation is made
@@ -473,8 +473,7 @@ fn test_multi_unstaker_single_epoch() {
     );
 
     // babylon unbonding
-    app.next_many_epochs(25)
-        .expect("Failed to fast forward to next epoch");
+    app.next_many_epochs(25);
 
     let hub_balance = app
         .wrap()
@@ -514,8 +513,7 @@ fn test_multi_unstaker_single_epoch() {
         .unwrap();
     assert_eq!(hub_balance.amount, Uint128::new(199_000_000));
 
-    app.next_epoch()
-        .expect("Failed to fast forward to next epoch");
+    app.next_epoch();
 
     for i in 1..stakers.clone().len() {
         tc.staking_hub
@@ -604,8 +602,7 @@ fn test_multi_unstaker_multi_epoch() {
     );
 
     let _res = app
-        .next_epoch()
-        .expect("Failed to fast forward to next epoch");
+        .next_epoch();
 
     let pending_delegation: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
@@ -639,8 +636,7 @@ fn test_multi_unstaker_multi_epoch() {
     }
 
     // simulate sometime passed
-    app.next_many_epochs(100)
-        .expect("Failed to fast forward to next epoch");
+    app.next_many_epochs(100);
 
     // -------------------- Unstaking Phase --------------------
     {
@@ -669,8 +665,7 @@ fn test_multi_unstaker_multi_epoch() {
                 )
                 .unwrap();
 
-            app.next_epoch()
-                .expect("Failed to fast forward to next epoch");
+            app.next_epoch();
         }
 
         // The undelegation for batch k is trigger by batch k+1 implicitly except for the last batch
@@ -686,8 +681,7 @@ fn test_multi_unstaker_multi_epoch() {
         // by the end of the loop - (200 epochs passed)
         // about 88 batches are unbonded the hub has received token back
         // need to advance at least 25 epoch to make the last batch unbonded
-        app.next_many_epochs(25)
-            .expect("Failed to fast forward to next epoch");
+        app.next_many_epochs(25);
 
         let hub_balance = app
             .wrap()
@@ -698,13 +692,23 @@ fn test_multi_unstaker_multi_epoch() {
     }
 
     // simulate some time passed
-    app.next_epoch()
-        .expect("Failed to fast forward to next epoch");
+    app.next_epoch();
 
     // ------- Claim Phase --------
 
-    // Claim sequentially should be successful
-    for i in 0..stakers.clone().len() {
+    //staker from the last batch claim first
+    tc.staking_hub
+        .execute(
+            &mut app,
+            &stakers[199],
+            &lst_common::hub::ExecuteMsg::WithdrawUnstaked {},
+        )
+        .unwrap();
+    let native_token_balance = app.wrap().query_balance(stakers[199].clone(), DENOM).unwrap();
+    assert_eq!(native_token_balance.amount, Uint128::new(1_000_000));
+
+    // Claim sequentially should be successful except the staker 199th above
+    for i in 0..stakers.clone().len() - 1 {
         tc.staking_hub
             .execute(
                 &mut app,
@@ -731,4 +735,8 @@ fn test_multi_unstaker_multi_epoch() {
     for history in all_history.history {
         assert_eq!(history.released, true);
     }
+}
+
+#[test]
+fn test_multi_unstaker_multi_epoch_undelegation_throttle() {
 }
