@@ -69,7 +69,7 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
 
         // custom starget simulate unbonding max delegator<->validator pair
         router.stargate.unbonding_time_secs = Some(UNBONDING_TIME);
-        router.stargate.max_unbonding_entries = Some(7);
+        router.stargate.max_unbonding_entries = Some(100);
 
         for (_addr, validator) in validators.clone() {
             router
