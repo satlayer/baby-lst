@@ -1,14 +1,13 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use crate::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
-use crate::testing::BabylonApp;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, Api, Binary, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Empty, Event, Querier,
     StakingMsg, Storage,
 };
 use cw_multi_test::error::AnyResult;
-use cw_multi_test::{AppResponse, CosmosRouter, Executor, Module};
+use cw_multi_test::{AppResponse, CosmosRouter, Module};
 use cw_storage_plus::Deque;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -76,10 +75,10 @@ pub trait EpochingModule:
         // loop through epoching message queue and execute each one
         // note: due to cw-multi-test, this is done in a transaction, so every msg must succeed for the state to be committed.
         while let Some(item) = EPOCHING_MSG_QUEUE.pop_front(storage)? {
-            let custom_msg = item.msg.change_custom();
+            let custom_msg = item.msg.change_custom().unwrap();
 
             // execute msg
-            let res = router.execute(api, storage, block, item.sender, custom_msg.unwrap())?;
+            let res = router.execute(api, storage, block, item.sender, custom_msg)?;
             // collect events
             events.extend(res.events);
         }

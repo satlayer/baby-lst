@@ -45,7 +45,7 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
             let validator = Validator::new(
                 validator_addr.to_string(),
                 Decimal::percent(10), // 10% commission
-                Decimal::percent(90), // 90% max comission
+                Decimal::percent(90), // 90% max commission
                 Decimal::percent(1),  // 1% max change rate
             );
             validators.push((validator_addr, validator));
@@ -68,7 +68,7 @@ fn instantiate() -> (BabylonApp, TestContracts, Vec<(Addr, Validator)>) {
             )
             .unwrap();
 
-        // custom starget simulate unbonding max delegator<->validator pair
+        // custom stargate simulate unbonding max delegator<->validator pair
         router.stargate.unbonding_time_secs = Some(UNBONDING_TIME);
         router.stargate.max_unbonding_entries = Some(100);
 
@@ -392,7 +392,7 @@ fn test_stake_unstake_within_same_epoch() {
         }
     );
 
-    app.next_epoch();
+    app.next_epoch().expect("Next Epoch Failed");
 
     let pending_delegation2: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();

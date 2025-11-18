@@ -28,6 +28,6 @@ cw20 = { workspace = true }
 
 [target."cfg(not(target_arch = \"wasm32\"))".dependencies]
 cw-multi-test = { workspace = true, features = ["staking", "cosmwasm_2_2"] }
-lst_token = {workspace = true}
-lst_validators_registry = {workspace = true}
-lst_reward_dispatcher = {workspace = true}
+lst_token = { workspace = true }
+lst_validators_registry = { workspace = true }
+lst_reward_dispatcher = { workspace = true }

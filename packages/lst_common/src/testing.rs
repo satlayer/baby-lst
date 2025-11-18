@@ -8,13 +8,13 @@ use crate::babylon::{
 use crate::babylon_msg::{MsgWrappedDelegate, MsgWrappedUndelegate};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Empty,
+    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery,
     Env, StdError, StdResult, Storage, Timestamp, Uint128, WasmMsg,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper,
-    Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, StakingInfo, Stargate,
+    Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, Stargate,
     WasmKeeper,
 };
 use prost::Message;
@@ -24,6 +24,9 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::str::FromStr;
+
+type UnbondingKeys = (String, String);
+type UnbondingEntriesMap = HashMap<UnbondingKeys, Vec<UnbondEntry>>;
 
 #[derive(Clone, Debug)]
 pub struct UnbondEntry {
@@ -36,14 +39,14 @@ pub struct CustomStargate {
 
     // We need interior mutability to manage unbonding entries
     // Because `execute_any()` method's trait take &self, not &mut self
-    pub unbonding_entries: Rc<RefCell<HashMap<(String, String), Vec<UnbondEntry>>>>,
+    pub unbonding_entries: Rc<RefCell<UnbondingEntriesMap>>,
 
     pub unbonding_time_secs: Option<u64>,
 }
 
 impl Default for CustomStargate {
     fn default() -> Self {
-        Self::new() // default to 7 entries, 7 days unbonding time
+        Self::new() // default to None for both max_unbonding_entries and unbonding_time_secs
     }
 }
 
@@ -173,13 +176,13 @@ impl Stargate for CustomStargate {
 
                 let entries = self
                     .unbonding_entries
-                    .borrow_mut()
+                    .borrow()
                     .get(&key)
                     .cloned()
                     .unwrap_or_default();
 
                 if entries.len()
-                    > self
+                    >= self
                         .max_unbonding_entries
                         .expect("max_unbonding_entries not set") as usize
                 {
@@ -215,7 +218,7 @@ impl Stargate for CustomStargate {
                     .as_slice(),
                 )?;
 
-                // send the MsgDelegate to the staking module
+                // send the MsgUndelegate to the staking module
                 router.execute(api, storage, block, sender, CosmosMsg::Custom(custom_msg))
             }
             _ => {
