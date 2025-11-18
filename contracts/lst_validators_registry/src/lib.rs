@@ -1,3 +1,4 @@
 pub mod contract;
-mod helper;
+pub mod helper;
 mod state;
+pub mod testing;

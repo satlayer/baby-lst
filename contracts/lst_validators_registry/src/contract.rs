@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    to_json_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 
+use crate::{
+    helper::fetch_validator_info,
+    state::{CONFIG, VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY},
+};
+use lst_common::address::{convert_addr_by_prefix, VALIDATOR_ADDR_PREFIX};
 use lst_common::{
     calculate_delegations,
     hub::ExecuteMsg::RedelegateProxy,
@@ -15,15 +20,10 @@ use lst_common::{
     ContractError, MigrateMsg,
 };
 
-use crate::{
-    helper::{convert_addr_by_prefix, fetch_validator_info, VALIDATOR_ADDR_PREFIX},
-    state::{CONFIG, VALIDATOR_EXCLUDE_LIST, VALIDATOR_REGISTRY},
-};
-
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -68,7 +68,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     match msg {
         ExecuteMsg::AddValidator { validator } => add_validator(deps, env, info, validator),
@@ -83,7 +83,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> L
 
 /// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
 /// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
@@ -253,7 +253,7 @@ fn update_config(
     Ok(res)
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => query_config(deps),
@@ -307,10 +307,7 @@ fn query_exclude_list(deps: Deps) -> LstResult<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        contract::{instantiate, query_config, query_exclude_list, remove_validator},
-        helper::VALIDATOR_ADDR_PREFIX,
-    };
+    use crate::contract::{instantiate, query_config, query_exclude_list, remove_validator};
     use cosmwasm_std::{
         attr, coin, coins,
         testing::{message_info, mock_dependencies, mock_env},
@@ -318,6 +315,7 @@ mod tests {
         Validator as StdValidator, WasmMsg,
     };
     use lst_common::{
+        address::VALIDATOR_ADDR_PREFIX,
         hub::ExecuteMsg as HubExecuteMsg,
         validator::{Config, InstantiateMsg, Validator, ValidatorResponse},
         ContractError,

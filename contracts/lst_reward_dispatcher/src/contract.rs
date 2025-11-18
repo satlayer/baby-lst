@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    attr, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use lst_common::{
@@ -16,7 +16,7 @@ use lst_common::rewards_msg::{Config, ExecuteMsg, InstantiateMsg, QueryMsg};
 const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -50,7 +50,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> LstResult<Response> {
     match msg {
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
@@ -166,7 +166,7 @@ fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> LstRe
         .add_attributes(attrs))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> LstResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
@@ -179,7 +179,7 @@ fn query_config(deps: Deps) -> LstResult<Config> {
 
 /// This can only be called by the contract ADMIN, enforced by `wasmd` separate from cosmwasm.
 /// See https://github.com/CosmWasm/cosmwasm/issues/926#issuecomment-851259818
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> LstResult<Response> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())

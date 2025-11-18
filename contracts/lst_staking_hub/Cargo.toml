@@ -16,7 +16,7 @@ library = []
 lst_common = { path = "../../packages/lst_common", default-features = false }
 
 cosmwasm-schema = { workspace = true }
-cosmwasm-std = { workspace = true, features = ["staking"] }
+cosmwasm-std = { workspace = true, features = ["staking", "cosmwasm_2_2"] }
 cosmos-sdk-proto = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
@@ -26,5 +26,8 @@ thiserror = { workspace = true }
 cw20-base = { workspace = true }
 cw20 = { workspace = true }
 
-[dev-dependencies]
-cw-multi-test = { workspace = true, features = ["staking"] }
+[target."cfg(not(target_arch = \"wasm32\"))".dependencies]
+cw-multi-test = { workspace = true, features = ["staking", "cosmwasm_2_2"] }
+lst_token = { workspace = true }
+lst_validators_registry = { workspace = true }
+lst_reward_dispatcher = { workspace = true }
