@@ -8,11 +8,14 @@ use crate::babylon::{
 use crate::babylon_msg::{MsgWrappedDelegate, MsgWrappedUndelegate};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Env, StdError, StdResult, Storage, Timestamp, Uint128, WasmMsg
+    to_json_binary, Addr, AnyMsg, Api, BlockInfo, Coin, CosmosMsg, CustomMsg, CustomQuery, Empty,
+    Env, StdError, StdResult, Storage, Timestamp, Uint128, WasmMsg,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
-    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper, Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, StakingInfo, Stargate, WasmKeeper
+    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, CosmosRouter, DistributionKeeper,
+    Executor, GovFailingModule, IbcFailingModule, Router, StakeKeeper, StakingInfo, Stargate,
+    WasmKeeper,
 };
 use prost::Message;
 use serde::de::DeserializeOwned;
@@ -104,7 +107,10 @@ impl Stargate for CustomStargate {
         match msg.type_url.as_str() {
             "/babylon.epoching.v1.MsgWrappedDelegate" => {
                 // Handle MsgDelegate to validator - reroute to default staking module
-                let msg: MsgWrappedDelegate = MsgWrappedDelegate::decode(msg.value.as_slice())?;
+                let msg: MsgWrappedDelegate = MsgWrappedDelegate::decode(msg.value.as_slice())
+                    .map_err(|e| {
+                        StdError::generic_err(format!("Failed to decode MsgWrappedDelegate: {}", e))
+                    })?;
                 let msg_delegate = msg
                     .msg
                     .ok_or(StdError::generic_err("Missing MsgDelegate"))?;
@@ -135,7 +141,13 @@ impl Stargate for CustomStargate {
 
             "/babylon.epoching.v1.MsgWrappedUndelegate" => {
                 // Handle MsgUndelegate to validator - reroute to default staking module
-                let msg: MsgWrappedUndelegate = MsgWrappedUndelegate::decode(msg.value.as_slice())?;
+                let msg: MsgWrappedUndelegate = MsgWrappedUndelegate::decode(msg.value.as_slice())
+                    .map_err(|e| {
+                        StdError::generic_err(format!(
+                            "Failed to decode MsgWrappedUndelegate: {}",
+                            e
+                        ))
+                    })?;
                 let msg_undelegate = msg
                     .msg
                     .ok_or(StdError::generic_err("Missing MsgUnDelegate"))?;
@@ -149,17 +161,32 @@ impl Stargate for CustomStargate {
 
                 self.prune_matured_unbondings(now);
 
-                let delegator = convert_addr_by_prefix(&msg_undelegate.delegator_address, VALIDATOR_ADDR_PREFIX);
-                let validator = convert_addr_by_prefix(&msg_undelegate.validator_address, VALIDATOR_ADDR_PREFIX);
+                let delegator = convert_addr_by_prefix(
+                    &msg_undelegate.delegator_address,
+                    VALIDATOR_ADDR_PREFIX,
+                );
+                let validator = convert_addr_by_prefix(
+                    &msg_undelegate.validator_address,
+                    VALIDATOR_ADDR_PREFIX,
+                );
                 let key = (delegator, validator);
 
-                let entries = self.unbonding_entries.borrow_mut()
+                let entries = self
+                    .unbonding_entries
+                    .borrow_mut()
                     .get(&key)
                     .cloned()
                     .unwrap_or_default();
 
-                if entries.len() > self.max_unbonding_entries.expect("max_unbonding_entries not set") as usize {
-                    return Err(StdError::generic_err("too many unbonding delegation entries for (delegator, validator) tuple").into())
+                if entries.len()
+                    > self
+                        .max_unbonding_entries
+                        .expect("max_unbonding_entries not set") as usize
+                {
+                    return Err(StdError::generic_err(
+                        "too many unbonding delegation entries for (delegator, validator) tuple",
+                    )
+                    .into());
                 }
 
                 self.add_unbonding_pair(
@@ -167,7 +194,8 @@ impl Stargate for CustomStargate {
                     key.1.clone(),
                     Uint128::from_str(&amount.amount.to_string())?,
                     now,
-                    self.unbonding_time_secs.expect("unbonding_time_secs not set"),
+                    self.unbonding_time_secs
+                        .expect("unbonding_time_secs not set"),
                 )?;
                 // ---------------------------------------
 
@@ -189,7 +217,6 @@ impl Stargate for CustomStargate {
 
                 // send the MsgDelegate to the staking module
                 router.execute(api, storage, block, sender, CosmosMsg::Custom(custom_msg))
-
             }
             _ => {
                 // Handle other messages
@@ -260,10 +287,9 @@ impl BabylonApp {
     }
 
     // fast forwarding epoch should not fail if underlying msg fails
-    pub fn next_epoch(&mut self) -> (AnyResult<AppResponse>, u64) {
+    pub fn next_epoch(&mut self) -> AnyResult<AppResponse> {
         let sender = self.api().addr_make("epoching");
         let res = self.execute(sender, EpochingMsg::NextEpoch {}.into());
-        let epoch_boundry = self.0.block_info().height;
 
         // fast forward the block height to the next epoch
         self.update_block(|block_info: &mut BlockInfo| {
@@ -281,10 +307,10 @@ impl BabylonApp {
             block_info.time = block_info.time.plus_seconds(EPOCH_LENGTH);
         });
 
-        (res, epoch_boundry)
+        res
     }
 
-    pub fn next_many_epochs(&mut self, n: u64) -> Vec<(AnyResult<AppResponse>, u64)> {
+    pub fn next_many_epochs(&mut self, n: u64) -> Vec<AnyResult<AppResponse>> {
         let mut res = vec![];
         for _ in 0..n {
             res.push(self.next_epoch());

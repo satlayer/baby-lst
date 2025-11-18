@@ -8,4 +8,4 @@ mod state;
 pub mod testing;
 pub mod unstake;
 
-pub use contract::{execute, instantiate, query};
+pub use contract::{execute, instantiate, migrate, query};

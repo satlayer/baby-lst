@@ -60,7 +60,7 @@ pub trait EpochingModule:
         Ok(())
     }
 
-    fn on_epoch_end2<ExecC, QueryC>(
+    fn on_epoch_end<ExecC, QueryC>(
         &self,
         api: &dyn Api,
         storage: &mut dyn Storage,
@@ -73,27 +73,13 @@ pub trait EpochingModule:
     {
         let mut events = vec![];
 
+        // loop through epoching message queue and execute each one
+        // note: due to cw-multi-test, this is done in a transaction, so every msg must succeed for the state to be committed.
         while let Some(item) = EPOCHING_MSG_QUEUE.pop_front(storage)? {
             let custom_msg = item.msg.change_custom();
 
             // execute msg
             let res = router.execute(api, storage, block, item.sender, custom_msg.unwrap())?;
-            // collect events
-            events.extend(res.events);
-        }
-
-        Ok(AppResponse {
-            events,
-            ..Default::default()
-        })
-    }
-    //
-    fn on_epoch_end(&self, app: &mut BabylonApp) -> AnyResult<AppResponse> {
-        let mut events = vec![];
-
-        while let Some(item) = EPOCHING_MSG_QUEUE.pop_front(app.storage_mut())? {
-            // execute msg
-            let res = app.execute(item.sender, item.msg)?;
             // collect events
             events.extend(res.events);
         }
@@ -202,7 +188,7 @@ impl Module for BabylonModule {
                 })
             }
 
-            EpochingMsg::NextEpoch {} => self.on_epoch_end2(_api, storage, _router, _block),
+            EpochingMsg::NextEpoch {} => self.on_epoch_end(_api, storage, _router, _block),
         }
     }
 

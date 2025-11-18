@@ -1,7 +1,7 @@
 #![cfg(any(test, feature = "testing"))]
 
 use cosmwasm_std::testing::mock_env;
-use cosmwasm_std::{coin, coins, Addr, Decimal, Uint128, Validator};
+use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Uint128, Validator};
 use cw20::BalanceResponse;
 use cw20::Cw20ExecuteMsg::IncreaseAllowance;
 use cw_multi_test::{Executor, StakingInfo};
@@ -10,9 +10,10 @@ use lst_common::babylon::{
     DENOM, EPOCH_LENGTH, STAKING_EPOCH_LENGTH_BLOCKS, STAKING_EPOCH_START_BLOCK_HEIGHT,
     UNSTAKING_PERIOD,
 };
+use lst_common::hub::CurrentBatch as CurrentBatchRes;
 use lst_common::hub::ExecuteMsg::{Stake, Unstake, UpdateConfig};
 use lst_common::hub::PendingDelegation as PendingDelegationRes;
-use lst_common::hub::QueryMsg::{ExchangeRate, PendingDelegation};
+use lst_common::hub::QueryMsg::{CurrentBatch, ExchangeRate, PendingDelegation};
 use lst_common::testing::{BabylonApp, TestingContract};
 use lst_common::validator::ExecuteMsg::AddValidator;
 use lst_common::validator::Validator as LSTValidator;
@@ -150,6 +151,137 @@ fn test_instantiate() {
     assert_eq!(
         tc.staking_hub.init.staking_epoch_start_block_height,
         STAKING_EPOCH_START_BLOCK_HEIGHT
+    );
+}
+
+#[test]
+fn test_unbonding() {
+    let (mut app, tc, _validators) = instantiate();
+
+    let owner = app.api().addr_make("owner");
+    let staker = app.api().addr_make("staker");
+    let staker2 = app.api().addr_make("staker2");
+
+    {
+        // get BABY token for staker
+        app.send_tokens(owner.clone(), staker.clone(), &coins(1_000_000, DENOM))
+            .unwrap();
+
+        // staker stake 1_000_000 BABY
+        tc.staking_hub
+            .execute_with_funds(&mut app, &staker, &Stake {}, coins(1_000_000, DENOM))
+            .unwrap();
+
+        // assert that the staker has 1_000_000 LST token = 1:1 exchange rate
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(1_000_000));
+    }
+
+    {
+        // staker2 stake 500_000 BABY
+        app.send_tokens(owner.clone(), staker2.clone(), &coins(500_000, DENOM))
+            .unwrap();
+        tc.staking_hub
+            .execute_with_funds(&mut app, &staker2, &Stake {}, coins(500_000, DENOM))
+            .unwrap();
+
+        // assert that the staker2 has 500_000 LST token = 1:1 exchange rate
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker2.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(500_000));
+    }
+
+    // Next epoch
+    app.next_epoch();
+
+    // check if validator has delegated stake
+    let res = app
+        .wrap()
+        .query_delegator_validators(
+            tc.staking_hub.addr(), // cosmwasm1mzdhwvvh22wrt07w59wxyd58822qavwkx5lcej7aqfkpqqlhaqfsgn6fq2
+        )
+        .unwrap();
+    assert_eq!(res.len(), 10);
+
+    // check if contract balance is reduced
+    let res = app
+        .wrap()
+        .query_balance(tc.staking_hub.addr(), DENOM)
+        .unwrap();
+    assert_eq!(res, Coin::new(Uint128::zero(), DENOM));
+
+    {
+        // staker2 give allowance to staking hub
+        tc.lst_token
+            .execute(
+                &mut app,
+                &staker2,
+                &IncreaseAllowance {
+                    spender: tc.staking_hub.addr().to_string(),
+                    amount: Uint128::new(200_000),
+                    expires: None,
+                },
+            )
+            .unwrap();
+        // staker2 unstake 200_000 LST
+        tc.staking_hub
+            .execute(
+                &mut app,
+                &staker2,
+                &Unstake {
+                    amount: Uint128::new(200_000),
+                },
+            )
+            .unwrap();
+
+        // assert that the staker2 has 300_000 LST token left
+        let BalanceResponse { balance } = tc
+            .lst_token
+            .query(
+                &app,
+                &cw20_base::msg::QueryMsg::Balance {
+                    address: staker2.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, Uint128::new(500_000 - 200_000));
+    }
+
+    let pending_delegation2: PendingDelegationRes =
+        tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
+    assert_eq!(
+        pending_delegation2,
+        PendingDelegationRes {
+            staking_epoch_length_blocks: 360,
+            staking_epoch_start_block_height: 360, // next epoch
+            pending_staking_amount: Uint128::zero(),
+            pending_unstaking_amount: Uint128::zero(),
+        }
+    );
+
+    // assert current_batch has unstaking amount
+    let current_batch: CurrentBatchRes = tc.staking_hub.query(&app, &CurrentBatch {}).unwrap();
+    assert_eq!(
+        current_batch,
+        CurrentBatchRes {
+            id: 1,
+            requested_lst_token_amount: Uint128::new(200_000),
+        }
     );
 }
 
@@ -330,8 +462,7 @@ fn test_multi_unstaker_single_epoch() {
         }
     );
 
-    let _res = app
-        .next_epoch();
+    let _res = app.next_epoch();
 
     // the next 100 stakers stake 1_000_000 BABY each
     for staker in stakers.iter().skip(100) {
@@ -368,8 +499,7 @@ fn test_multi_unstaker_single_epoch() {
         }
     );
 
-    let _res = app
-        .next_epoch();
+    let _res = app.next_epoch();
 
     let validators: Vec<lst_common::validator::ValidatorResponse> = tc
         .validator_registry
@@ -404,8 +534,7 @@ fn test_multi_unstaker_single_epoch() {
 
     // Don't have any epoching msg for this one
     // Fast forwarding to next epoch just to simulate some time passing
-    let _res = app
-        .next_many_epochs(3);
+    let _res = app.next_many_epochs(3);
 
     // Note - by this point,
     // the batch id 1 (genesis batch) is due and time for 2nd batch to be created
@@ -601,8 +730,7 @@ fn test_multi_unstaker_multi_epoch() {
         }
     );
 
-    let _res = app
-        .next_epoch();
+    let _res = app.next_epoch();
 
     let pending_delegation: PendingDelegationRes =
         tc.staking_hub.query(&app, &PendingDelegation {}).unwrap();
@@ -704,7 +832,10 @@ fn test_multi_unstaker_multi_epoch() {
             &lst_common::hub::ExecuteMsg::WithdrawUnstaked {},
         )
         .unwrap();
-    let native_token_balance = app.wrap().query_balance(stakers[199].clone(), DENOM).unwrap();
+    let native_token_balance = app
+        .wrap()
+        .query_balance(stakers[199].clone(), DENOM)
+        .unwrap();
     assert_eq!(native_token_balance.amount, Uint128::new(1_000_000));
 
     // Claim sequentially should be successful except the staker 199th above
@@ -738,5 +869,4 @@ fn test_multi_unstaker_multi_epoch() {
 }
 
 #[test]
-fn test_multi_unstaker_multi_epoch_undelegation_throttle() {
-}
+fn test_multi_unstaker_multi_epoch_undelegation_throttle() {}

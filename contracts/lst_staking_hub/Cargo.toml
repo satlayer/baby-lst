@@ -16,7 +16,7 @@ library = []
 lst_common = { path = "../../packages/lst_common", default-features = false }
 
 cosmwasm-schema = { workspace = true }
-cosmwasm-std = { workspace = true, features = ["staking"] }
+cosmwasm-std = { workspace = true, features = ["staking", "cosmwasm_2_2"] }
 cosmos-sdk-proto = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }

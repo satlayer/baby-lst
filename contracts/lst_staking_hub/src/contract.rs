@@ -15,8 +15,8 @@ use lst_common::{
     hub::{
         Config, CurrentBatch, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, State,
     },
+    ContractError, MigrateMsg,
 };
-use lst_common::{ContractError, MigrateMsg};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::constants::{
